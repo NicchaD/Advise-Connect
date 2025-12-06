@@ -118,6 +118,7 @@ export default function MyItems() {
   const [isBillabilitySaving, setIsBillabilitySaving] = useState(false);
   const [calculatedHours, setCalculatedHours] = useState<number>(0);
   const [calculatedPD, setCalculatedPD] = useState<number>(0);
+  const [showCalculationLogic, setShowCalculationLogic] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   // Utility functions
@@ -1536,6 +1537,76 @@ export default function MyItems() {
                      );
                      }
                    })()}
+                   
+                   {/* Auto-calculated Billable Assignment Days */}
+                   {(selectedRequest.billability_percentage !== null && selectedRequest.billability_percentage !== undefined && selectedRequest.billability_percentage > 0) && (
+                     <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-lg p-6 shadow-lg">
+                       <div className="space-y-4">
+                         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                           <Clock className="h-4 w-4" />
+                           Number of days of billable assignment with the above allocation
+                         </div>
+                         <div className="text-3xl font-bold text-blue-700 bg-white p-4 rounded-lg border-2 border-blue-200">
+                           {(() => {
+                             // Calculate billable assignment days
+                             const totalHours = calculatedHours || 0;
+                             const billabilityPercentage = selectedRequest.billability_percentage || 0;
+                             
+                             if (totalHours > 0 && billabilityPercentage > 0) {
+                               // Assuming 8 hours per working day
+                               const hoursPerDay = 8;
+                               // Calculate effective hours per day based on billability percentage
+                               const effectiveHoursPerDay = (hoursPerDay * billabilityPercentage) / 100;
+                               // Calculate number of days needed
+                               const daysNeeded = Math.ceil(totalHours / effectiveHoursPerDay);
+                               
+                               console.log('Billable Days Calculation:', {
+                                 totalHours,
+                                 billabilityPercentage,
+                                 hoursPerDay,
+                                 effectiveHoursPerDay,
+                                 daysNeeded
+                               });
+                               
+                               return `${daysNeeded} ${daysNeeded === 1 ? 'day' : 'days'}`;
+                             }
+                             
+                             return 'Not calculated';
+                           })()}
+                         </div>
+                         <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-lg border border-blue-200">
+                           <div className="flex items-start gap-2">
+                             <div className="text-blue-600 mt-0.5">ℹ️</div>
+                             <div className="w-full">
+                               <button 
+                                 onClick={() => {
+                                   const currentState = showCalculationLogic[selectedRequest.id] || false;
+                                   setShowCalculationLogic(prev => ({
+                                     ...prev,
+                                     [selectedRequest.id]: !currentState
+                                   }));
+                                 }}
+                                 className="font-medium text-blue-800 hover:text-blue-900 cursor-pointer flex items-center gap-1 transition-colors"
+                               >
+                                 <span>Calculation Logic</span>
+                                 <span className="text-xs">
+                                   {showCalculationLogic[selectedRequest.id] ? '▼' : '▶'}
+                                 </span>
+                               </button>
+                               {showCalculationLogic[selectedRequest.id] && (
+                                 <div className="space-y-1 text-xs mt-2 animate-in slide-in-from-top-1 duration-200">
+                                   <div>• Total hours needed: <span className="font-mono">{calculatedHours || 0} hours</span></div>
+                                   <div>• Billability allocation: <span className="font-mono">{selectedRequest.billability_percentage || 0}%</span></div>
+                                   <div>• Effective hours per day: <span className="font-mono">{selectedRequest.billability_percentage ? Math.round((8 * selectedRequest.billability_percentage / 100) * 10) / 10 : 0} hours/day</span></div>
+                                   <div>• Working days needed: <span className="font-mono">⌈{calculatedHours || 0} ÷ {selectedRequest.billability_percentage ? Math.round((8 * selectedRequest.billability_percentage / 100) * 10) / 10 : 0}⌉</span></div>
+                                 </div>
+                               )}
+                             </div>
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   )}
                   </div>
                 </div>
               )}
