@@ -1704,9 +1704,10 @@ export default function MyItems() {
                                 calculatedHours,
                                 savedTotalHours: selectedRequest.saved_total_hours,
                                 displayHours,
+                                finalDisplay: displayHours > 0 ? displayHours : 'Not calculated',
                                 logic: selectedRequest.estimation_saved_at ? 'frozen-fallback' : 'calculated'
                               });
-                              return displayHours;
+                              return displayHours > 0 ? displayHours : 'Not calculated';
                             })()}
                          </div>
                         <div className="text-xs text-muted-foreground">
@@ -1744,10 +1745,11 @@ export default function MyItems() {
                                 calculatedPD,
                                 savedTotalPD: selectedRequest.saved_total_pd_estimate,
                                 displayPD,
+                                finalDisplay: displayPD > 0 ? `${displayPD} PD` : 'Not calculated',
                                 logic: selectedRequest.estimation_saved_at ? 'frozen-fallback' : 'calculated'
                               });
-                              return displayPD;
-                            })()} PD
+                              return displayPD > 0 ? `${displayPD} PD` : 'Not calculated';
+                            })()}
                          </div>
                         <div className="text-xs text-muted-foreground">
                           {selectedRequest.estimation_saved_at ? 'Frozen during estimation' : 'Total hours ÷ 8 (Person Days)'}
@@ -1789,10 +1791,16 @@ export default function MyItems() {
                           )}
                         </div>
                         <div className="text-lg font-semibold text-green-600">
-                          ${selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at
-                            ? (assigneeInfo?.rate_per_hour || 0)
-                            : (selectedRequest.saved_assignee_rate || assigneeInfo?.rate_per_hour || 0)
-                          }/hour
+                          {(() => {
+                            let rate = 0;
+                            if (selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at) {
+                              rate = assigneeInfo?.rate_per_hour || 0;
+                            } else {
+                              rate = selectedRequest.saved_assignee_rate || assigneeInfo?.rate_per_hour || 0;
+                            }
+                            
+                            return rate > 0 ? `$${rate}/hour` : 'Not set';
+                          })()}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {selectedRequest.estimation_saved_at ? 'Frozen during estimation' : 'Hourly billing rate'}
@@ -1800,26 +1808,68 @@ export default function MyItems() {
                       </div>
                     </div>
                     
-                    {/* Always show total cost section for Estimation status or when saved data exists */}
-                    {(selectedRequest.status === 'Estimation' || selectedRequest.saved_total_cost || selectedRequest.saved_total_hours) && (
+                    {/* Always show total cost section when we have hours or cost data */}
+                    {(selectedRequest.status === 'Estimation' || 
+                      selectedRequest.saved_total_cost || 
+                      selectedRequest.saved_total_hours ||
+                      calculatedHours > 0 ||
+                      ['Review', 'Approved', 'Approval', 'Implementing', 'Implemented', 'Awaiting Feedback', 'Closed'].includes(selectedRequest.status)) && (
                       <div className="mt-4 pt-4 border-t border-primary/20">
                         <div className="flex items-center justify-between text-sm">
                           <span className="font-medium text-muted-foreground">Estimated Total Cost:</span>
                           <span className="text-xl font-bold text-green-600">
-                             ${selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at
-                               ? calculateTotalCost(selectedRequest.selected_activities, selectedRequest.service_offering_activities, assigneeInfo?.rate_per_hour || 0).toLocaleString()
-                               : (selectedRequest.saved_total_cost || 0).toLocaleString()
-                             }
+                             {(() => {
+                               let cost = 0;
+                               
+                               // First try to use saved cost if available
+                               if (selectedRequest.saved_total_cost && selectedRequest.saved_total_cost > 0) {
+                                 cost = selectedRequest.saved_total_cost;
+                               } 
+                               // Otherwise calculate cost using current rate and calculated hours
+                               else {
+                                 const rate = selectedRequest.saved_assignee_rate || assigneeInfo?.rate_per_hour || 0;
+                                 if (rate > 0) {
+                                   // Use the calculatedHours state variable that we know is working (38 hours)
+                                   const hours = calculatedHours;
+                                   cost = hours * rate;
+                                   console.log('MyItems Cost Calculation:', { 
+                                     hours, 
+                                     calculatedHours,
+                                     rate, 
+                                     cost,
+                                     savedRate: selectedRequest.saved_assignee_rate,
+                                     currentRate: assigneeInfo?.rate_per_hour 
+                                   });
+                                 }
+                               }
+                               
+                               return cost > 0 ? `$${cost.toLocaleString()}` : 'Rate not set';
+                             })()}
                            </span>
                          </div>
                          <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
                            <span>
-                             ({selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at
-                               ? `${calculateTotalHours(selectedRequest.selected_activities, selectedRequest.service_offering_activities)} hours × $${assigneeInfo?.rate_per_hour || 0}/hour`
-                               : `${selectedRequest.saved_total_hours || 0} hours × $${selectedRequest.saved_assignee_rate || 0}/hour`
-                             })
+                             {(() => {
+                               // Use the calculatedHours state variable that we know is working (38 hours)
+                               const hours = calculatedHours;
+                               
+                               // Get the rate (saved rate takes precedence, then current rate)
+                               const rate = selectedRequest.saved_assignee_rate || assigneeInfo?.rate_per_hour || 0;
+                               
+                               console.log('MyItems Cost Breakdown:', { 
+                                 hours, 
+                                 calculatedHours, 
+                                 rate,
+                                 savedRate: selectedRequest.saved_assignee_rate,
+                                 currentRate: assigneeInfo?.rate_per_hour
+                               });
+                               
+                               return rate > 0 
+                                 ? `(${hours} hours × $${rate}/hour)`
+                                 : `(${hours} hours × Rate not set)`;
+                             })()}
                            </span>
-                           {!assigneeInfo?.rate_per_hour && selectedRequest.status === 'Estimation' && (
+                           {(!assigneeInfo?.rate_per_hour || assigneeInfo.rate_per_hour === 0) && selectedRequest.status === 'Estimation' && (
                              <span className="text-orange-600 font-medium">
                                Rate not available - contact admin for accurate costing
                              </span>
