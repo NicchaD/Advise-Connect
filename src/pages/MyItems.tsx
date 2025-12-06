@@ -1648,9 +1648,6 @@ export default function MyItems() {
                 />
               )}
 
-              {/* Timesheet Section - Show for requests with status "Implementing" */}
-              {selectedRequest.status === 'Implementing' && (selectedRequest.selected_activities || selectedRequest.service_offering_activities) && renderTimesheetSection()}
-
               {/* Rate and Estimation Section - Show when any estimation data exists */}
               {(selectedRequest.status === 'Estimation' || 
                 selectedRequest.saved_total_hours || 
@@ -1833,6 +1830,9 @@ export default function MyItems() {
                   </div>
                 </div>
               )}
+
+              {/* Timesheet Section - Show for requests with status "Implementing" */}
+              {selectedRequest.status === 'Implementing' && (selectedRequest.selected_activities || selectedRequest.service_offering_activities) && renderTimesheetSection()}
 
               {/* Comments Section */}
               <RequestComments 

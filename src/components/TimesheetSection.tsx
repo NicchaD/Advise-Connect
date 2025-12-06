@@ -238,7 +238,6 @@ export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
         <div className="flex gap-4 text-sm text-muted-foreground">
           <span>Progress: {completed}/{total} activities</span>
           <span>Hours: {completedHours}/{totalHours}h</span>
-          {isReadOnly && <span className="text-amber-600 font-medium">Viewing as Advisory Service Head</span>}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
