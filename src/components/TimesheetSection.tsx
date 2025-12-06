@@ -29,6 +29,7 @@ interface DayActivity {
   isPartial?: boolean;
   partNumber?: number;
   totalParts?: number;
+  uniqueKey?: string; // Unique identifier for this specific day entry
 }
 
 export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
@@ -40,6 +41,7 @@ export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
   onTimesheetUpdate,
 }) => {
   const [completedActivities, setCompletedActivities] = useState<Record<string, boolean>>({});
+  const [dayActivities, setDayActivities] = useState<DayActivity[][]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [subActivitiesList, setSubActivitiesList] = useState<SubActivity[]>([]);
 
@@ -80,12 +82,8 @@ export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
 
         setSubActivitiesList(subActivities || []);
 
-        // Initialize completion status from timesheet data
-        const initialCompletion: Record<string, boolean> = {};
-        subActivities?.forEach(subActivity => {
-          initialCompletion[subActivity.id] = timesheetData?.completed?.[subActivity.id] || false;
-        });
-        setCompletedActivities(initialCompletion);
+        // We'll initialize completion status after day activities are distributed
+        // This is now handled in the distributeDays function
       } catch (error) {
         console.error('Error loading sub-activities:', error);
         toast.error('Failed to load sub-activities');
@@ -95,12 +93,33 @@ export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
     loadSubActivities();
   }, [selectedActivities, timesheetData]);
 
-  const handleActivityToggle = (subActivityId: string, completed: boolean) => {
+  // Initialize day activities and completion status when subActivitiesList changes
+  useEffect(() => {
+    if (subActivitiesList.length > 0) {
+      const distributedDays = distributeDays();
+      setDayActivities(distributedDays);
+
+      // Initialize completion status from timesheet data
+      const initialCompletion: Record<string, boolean> = {};
+      distributedDays.flat().forEach(activity => {
+        if (activity.uniqueKey) {
+          // Check if this specific day entry was completed (fallback to old sub-activity ID for backward compatibility)
+          initialCompletion[activity.uniqueKey] = 
+            timesheetData?.completed?.[activity.uniqueKey] || 
+            timesheetData?.completed?.[activity.subActivityId] || 
+            false;
+        }
+      });
+      setCompletedActivities(initialCompletion);
+    }
+  }, [subActivitiesList, billabilityPercentage, timesheetData]);
+
+  const handleActivityToggle = (uniqueKey: string, completed: boolean) => {
     if (isReadOnly) return;
     
     setCompletedActivities(prev => ({
       ...prev,
-      [subActivityId]: completed
+      [uniqueKey]: completed
     }));
   };
 
@@ -132,9 +151,9 @@ export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
   };
 
   const getCompletionStats = () => {
-    const completed = Object.values(completedActivities).filter(Boolean).length;
-    const total = subActivitiesList.length;
-    return { completed, total };
+    const totalEntries = dayActivities.flat().length;
+    const completedEntries = Object.values(completedActivities).filter(Boolean).length;
+    return { completed: completedEntries, total: totalEntries };
   };
 
   const getTotalHours = () => {
@@ -144,9 +163,9 @@ export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
   };
 
   const getCompletedHours = () => {
-    return subActivitiesList.reduce((total, subActivity) => {
-      if (completedActivities[subActivity.id]) {
-        return total + (subActivity.estimated_hours || 0);
+    return dayActivities.flat().reduce((total, activity) => {
+      if (completedActivities[activity.uniqueKey || '']) {
+        return total + activity.hours;
       }
       return total;
     }, 0);
@@ -154,6 +173,8 @@ export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
 
   // Function to distribute activities across days based on billability percentage
   const distributeDays = () => {
+    if (subActivitiesList.length === 0) return [];
+
     const days: DayActivity[][] = [];
     let currentDay: DayActivity[] = [];
     let currentDayHours = 0;
@@ -172,6 +193,9 @@ export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
         const hoursToAdd = Math.min(remainingHours, DAILY_LIMIT - currentDayHours);
         
         if (hoursToAdd > 0) {
+          // Generate unique key for this specific day entry
+          const uniqueKey = `${subActivity.id}-day${days.length}-part${partNumber}`;
+          
           // Add to current day
           const activity: DayActivity = {
             subActivityId: subActivity.id,
@@ -180,6 +204,7 @@ export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
             isPartial: totalParts > 1,
             partNumber: totalParts > 1 ? partNumber : undefined,
             totalParts: totalParts > 1 ? totalParts : undefined,
+            uniqueKey: uniqueKey,
           };
           
           currentDay.push(activity);
@@ -251,8 +276,8 @@ export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
 
         {/* Day-wise Activity Distribution */}
         <div className="space-y-6">
-          {distributeDays().map((dayActivities, dayIndex) => {
-            const dayTotalHours = dayActivities.reduce((sum, activity) => sum + activity.hours, 0);
+          {dayActivities.map((dayActivitiesList, dayIndex) => {
+            const dayTotalHours = dayActivitiesList.reduce((sum, activity) => sum + activity.hours, 0);
             const DAILY_LIMIT = (8 * billabilityPercentage) / 100;
             
             return (
@@ -270,17 +295,17 @@ export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
                 </div>
                 
                 <div className="p-4 space-y-3">
-                  {dayActivities.map((activity, activityIndex) => (
+                  {dayActivitiesList.map((activity, activityIndex) => (
                     <div 
-                      key={`${activity.subActivityId}-${activityIndex}`}
+                      key={activity.uniqueKey || `${activity.subActivityId}-${activityIndex}`}
                       className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/30 transition-colors"
                     >
                       <div className="flex items-center space-x-3">
                         <Checkbox
-                          checked={completedActivities[activity.subActivityId] || false}
+                          checked={completedActivities[activity.uniqueKey || ''] || false}
                           disabled={isReadOnly}
                           onCheckedChange={(checked) => 
-                            handleActivityToggle(activity.subActivityId, checked as boolean)
+                            handleActivityToggle(activity.uniqueKey || '', checked as boolean)
                           }
                         />
                         <div className="flex-1">
@@ -304,7 +329,7 @@ export const TimesheetSection: React.FC<TimesheetSectionProps> = ({
                         <span className="text-sm font-medium text-primary">
                           {activity.hours}h
                         </span>
-                        {completedActivities[activity.subActivityId] && (
+                        {completedActivities[activity.uniqueKey || ''] && (
                           <div className="text-sm text-green-600 font-medium">
                             ✓
                           </div>
