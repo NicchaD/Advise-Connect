@@ -27,6 +27,8 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import RequestFeedbackForm from '@/components/RequestFeedbackForm';
 import RequestTimeline from '@/components/RequestTimeline';
+import { TimesheetSection } from '@/components/TimesheetSection';
+import { RequestComments } from '@/components/RequestComments';
 
 // Mapping for tool/offering IDs to display names
 const TOOL_ID_TO_NAME_MAP: Record<string, string> = {
@@ -103,6 +105,8 @@ interface Request {
   saved_assignee_role?: string;
   estimation_saved_at?: string;
   assignee_profile?: any;
+  timesheet_data?: any;
+  billability_percentage?: number;
 }
 
 const STATUS_COLORS = {
@@ -151,6 +155,7 @@ export default function MyRequests() {
   const [calculatedHours, setCalculatedHours] = useState<number>(0);
   const [calculatedPD, setCalculatedPD] = useState<number>(0);
   const [assigneeInfo, setAssigneeInfo] = useState<any>(null);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -218,6 +223,9 @@ export default function MyRequests() {
         });
         return;
       }
+
+      // Set current user ID for comments
+      setCurrentUserId(user.id);
 
       const { data, error } = await supabase
         .from('requests')
@@ -964,6 +972,23 @@ export default function MyRequests() {
                 </div>
               )}
 
+              {/* Timesheet Section - Show for requests with status "Implementing" in read-only mode */}
+              {selectedRequest.status === 'Implementing' && (selectedRequest.selected_activities || selectedRequest.service_offering_activities) && (
+                <div className="space-y-4">
+                  <TimesheetSection
+                    requestId={selectedRequest.id}
+                    selectedActivities={selectedRequest.selected_activities || selectedRequest.service_offering_activities}
+                    timesheetData={selectedRequest.timesheet_data || {}}
+                    isReadOnly={true}
+                    billabilityPercentage={selectedRequest.billability_percentage || 100}
+                    onTimesheetUpdate={(data) => {
+                      // Read-only mode - no updates needed for requestors
+                      console.log('Timesheet update (read-only):', data);
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Request Timeline */}
               <RequestTimeline requestId={selectedRequest.id} />
 
@@ -981,6 +1006,16 @@ export default function MyRequests() {
                       setSelectedRequest(null);
                       fetchUserRequests(); // Refresh the requests list
                     }}
+                  />
+                </div>
+              )}
+
+              {/* Comments Section - Always show for all requests */}
+              {currentUserId && (
+                <div className="space-y-4">
+                  <RequestComments
+                    requestId={selectedRequest.id}
+                    currentUserId={currentUserId}
                   />
                 </div>
               )}
