@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +29,250 @@ import RequestFeedbackForm from '@/components/RequestFeedbackForm';
 import RequestTimeline from '@/components/RequestTimeline';
 import { TimesheetSection } from '@/components/TimesheetSection';
 import { RequestComments } from '@/components/RequestComments';
+
+// Activities Details Section Component
+const ActivitiesDetailsSection: React.FC<{ timesheetData: any; requestId: string }> = ({ timesheetData, requestId }) => {
+  const [subActivityNames, setSubActivityNames] = useState<Record<string, string>>({});
+
+  // Extract unique sub-activity IDs from timesheet data
+  const subActivityIds = useMemo(() => {
+    const ids = new Set<string>();
+    Object.entries(timesheetData || {}).forEach(([key, value]) => {
+      if (typeof value === 'object' && value !== null) {
+        Object.entries(value).forEach(([activityKey, activityValue]) => {
+          if (typeof activityValue === 'boolean') {
+            // Extract sub-activity ID from the unique key format: subActivityId-day0-part1
+            const subActivityId = activityKey.split('-day')[0];
+            ids.add(subActivityId);
+          }
+        });
+      }
+    });
+    return Array.from(ids);
+  }, [timesheetData]);
+
+  // Fetch sub-activity names
+  useEffect(() => {
+    const fetchSubActivityNames = async () => {
+      if (subActivityIds.length === 0) return;
+      
+      try {
+        const { data: subActivities, error } = await supabase
+          .from('sub_activities')
+          .select('id, name')
+          .in('id', subActivityIds);
+        
+        if (error) {
+          console.error('Error fetching sub-activity names:', error);
+          return;
+        }
+        
+        const nameMap: Record<string, string> = {};
+        subActivities?.forEach(subActivity => {
+          nameMap[subActivity.id] = subActivity.name;
+        });
+        
+        setSubActivityNames(nameMap);
+        console.log('Fetched sub-activity names:', nameMap);
+      } catch (error) {
+        console.error('Error fetching sub-activity names:', error);
+      }
+    };
+    
+    fetchSubActivityNames();
+  }, [subActivityIds, requestId]);
+
+  // Process timesheet data to get completed and non-completed activities
+  const { groupedCompleted, groupedNonCompleted, totalActivities, completedCount, pendingCount } = useMemo(() => {
+    const completedActivities: any[] = [];
+    const nonCompletedActivities: any[] = [];
+    
+    // Process the timesheet data to extract activity information
+    Object.entries(timesheetData || {}).forEach(([key, value]) => {
+      if (typeof value === 'object' && value !== null) {
+        // Handle day activities with unique keys
+        Object.entries(value).forEach(([activityKey, activityValue]) => {
+          if (typeof activityValue === 'boolean') {
+            // Extract sub-activity ID from the unique key
+            const subActivityId = activityKey.split('-day')[0];
+            const activityName = subActivityNames[subActivityId] || subActivityId;
+            
+            // This is a completion status for a day activity
+            const activityInfo = {
+              key: activityKey,
+              id: subActivityId,
+              name: activityName,
+              dayInfo: key,
+              completed: activityValue
+            };
+            
+            if (activityValue) {
+              completedActivities.push(activityInfo);
+            } else {
+              nonCompletedActivities.push(activityInfo);
+            }
+          }
+        });
+      }
+    });
+    
+    // Remove duplicates and group by activity name
+    const groupedCompleted: Record<string, any> = {};
+    const groupedNonCompleted: Record<string, any> = {};
+    
+    completedActivities.forEach(activity => {
+      if (!groupedCompleted[activity.name]) {
+        groupedCompleted[activity.name] = {
+          name: activity.name,
+          id: activity.id,
+          activities: []
+        };
+      }
+      groupedCompleted[activity.name].activities.push(activity);
+    });
+    
+    nonCompletedActivities.forEach(activity => {
+      if (!groupedNonCompleted[activity.name]) {
+        groupedNonCompleted[activity.name] = {
+          name: activity.name,
+          id: activity.id,
+          activities: []
+        };
+      }
+      groupedNonCompleted[activity.name].activities.push(activity);
+    });
+
+    // Calculate statistics
+    let totalActivities = 0;
+    let completedCount = 0;
+    let pendingCount = 0;
+    
+    Object.values(timesheetData || {}).forEach(dayData => {
+      if (typeof dayData === 'object' && dayData !== null) {
+        totalActivities += Object.keys(dayData).length;
+        Object.values(dayData).forEach(value => {
+          if (value === true) completedCount++;
+          if (value === false) pendingCount++;
+        });
+      }
+    });
+    
+    console.log('Activities Details:', {
+      timesheetData,
+      subActivityIds,
+      subActivityNames,
+      completedActivities,
+      nonCompletedActivities,
+      groupedCompleted,
+      groupedNonCompleted
+    });
+    
+    return { groupedCompleted, groupedNonCompleted, totalActivities, completedCount, pendingCount };
+  }, [timesheetData, subActivityNames]);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-lg p-6 shadow-lg">
+        <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-purple-700">
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Activities Details
+        </h3>
+        
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Completed Activities */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+              <h4 className="text-lg font-semibold text-green-700">Completed Work</h4>
+              <span className="text-sm text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                {Object.keys(groupedCompleted).length} activities
+              </span>
+            </div>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {Object.keys(groupedCompleted).length > 0 ? (
+                Object.entries(groupedCompleted).map(([activityName, activityGroup]) => (
+                  <div key={activityName} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg className="h-4 w-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium text-green-800">{activityGroup.name}</span>
+                    </div>
+                    <div className="text-xs text-green-600 ml-6">
+                      {activityGroup.activities.length} day part{activityGroup.activities.length > 1 ? 's' : ''} completed
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <svg className="h-12 w-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p>No completed activities yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Non-Completed Activities */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-4 h-4 bg-orange-500 rounded-full"></div>
+              <h4 className="text-lg font-semibold text-orange-700">Pending Work</h4>
+              <span className="text-sm text-orange-600 bg-orange-100 px-2 py-1 rounded-full">
+                {Object.keys(groupedNonCompleted).length} activities
+              </span>
+            </div>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {Object.keys(groupedNonCompleted).length > 0 ? (
+                Object.entries(groupedNonCompleted).map(([activityName, activityGroup]) => (
+                  <div key={activityName} className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg className="h-4 w-4 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium text-orange-800">{activityGroup.name}</span>
+                    </div>
+                    <div className="text-xs text-orange-600 ml-6">
+                      {activityGroup.activities.length} day part{activityGroup.activities.length > 1 ? 's' : ''} pending
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <svg className="h-12 w-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p>All activities completed!</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {/* Summary Statistics */}
+        <div className="mt-6 pt-4 border-t border-purple-200">
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="bg-white rounded-lg p-3 border border-purple-200">
+              <div className="text-2xl font-bold text-purple-700">{totalActivities}</div>
+              <div className="text-xs text-purple-600">Total Activities</div>
+            </div>
+            <div className="bg-white rounded-lg p-3 border border-purple-200">
+              <div className="text-2xl font-bold text-green-600">{completedCount}</div>
+              <div className="text-xs text-green-600">Completed</div>
+            </div>
+            <div className="bg-white rounded-lg p-3 border border-purple-200">
+              <div className="text-2xl font-bold text-orange-600">{pendingCount}</div>
+              <div className="text-xs text-orange-600">Pending</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Mapping for tool/offering IDs to display names
 const TOOL_ID_TO_NAME_MAP: Record<string, string> = {
@@ -1018,6 +1262,14 @@ export default function MyRequests() {
                     )}
                   </div>
                 </div>
+              )}
+
+              {/* Activities Details Section - Show for Awaiting Feedback status and later */}
+              {['Awaiting Feedback', 'Closed'].includes(selectedRequest.status) && selectedRequest.timesheet_data && (
+                <ActivitiesDetailsSection 
+                  timesheetData={selectedRequest.timesheet_data} 
+                  requestId={selectedRequest.id}
+                />
               )}
 
               {/* Timesheet Section - Show for requests with status "Implementing" in read-only mode */}
