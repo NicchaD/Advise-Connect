@@ -26,6 +26,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import RequestFeedbackForm from '@/components/RequestFeedbackForm';
+import { RequestFeedbackSection } from '@/components/RequestFeedbackSection';
 import RequestTimeline from '@/components/RequestTimeline';
 import { TimesheetSection } from '@/components/TimesheetSection';
 import { RequestComments } from '@/components/RequestComments';
@@ -345,6 +346,9 @@ interface Request {
   assignee_profile?: any;
   timesheet_data?: any;
   billability_percentage?: number;
+  requestor_id?: string;
+  assignee_id?: string;
+  original_assignee_id?: string;
 }
 
 const STATUS_COLORS = {
@@ -396,6 +400,8 @@ export default function MyRequests() {
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [showTimeline, setShowTimeline] = useState<Record<string, boolean>>({});
   const [showActivitiesDetails, setShowActivitiesDetails] = useState<Record<string, boolean>>({});
+  const [showCalculationLogic, setShowCalculationLogic] = useState<Record<string, boolean>>({});
+  const [showBillabilityPercentage, setShowBillabilityPercentage] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -1151,6 +1157,320 @@ export default function MyRequests() {
                             </Badge>
                           )}
                         </div>
+                        <div className="text-lg font-semibold text-secondary">
+                          {selectedRequest.saved_assignee_role || assigneeInfo?.role || 'Role not set'}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at
+                            ? 'Current billability role designation'
+                            : 'Frozen billability role (saved during estimation)'
+                          }
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cost Summary - Only show when we have both hours and rate */}
+                    {(selectedRequest.saved_total_cost || 
+                      selectedRequest.saved_total_hours || 
+                      calculatedHours > 0 ||
+                      ['Review', 'Approved', 'Approval', 'Implementing', 'Implemented', 'Awaiting Feedback', 'Closed'].includes(selectedRequest.status)) && (
+                      <div className="mt-4 pt-4 border-t border-primary/20">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-muted-foreground">Estimated Total Cost:</span>
+                          <span className="text-xl font-bold text-green-600">
+                             {(() => {
+                               let cost = 0;
+                               
+                               // First try to use saved cost if available
+                               if (selectedRequest.saved_total_cost && selectedRequest.saved_total_cost > 0) {
+                                 cost = selectedRequest.saved_total_cost;
+                               } 
+                               // Otherwise calculate cost using current rate and calculated hours
+                               else {
+                                 const rate = selectedRequest.saved_assignee_rate || assigneeInfo?.rate_per_hour || 0;
+                                 if (rate > 0) {
+                                   // Use the calculated hours from the hours calculation
+                                   const hours = calculateTotalHours(selectedRequest.selected_activities, selectedRequest.service_offering_activities);
+                                   cost = hours * rate;
+                                   console.log('MyRequests Cost Calculation:', { 
+                                     hours, 
+                                     calculatedHours,
+                                     rate, 
+                                     cost,
+                                     savedRate: selectedRequest.saved_assignee_rate,
+                                     currentRate: assigneeInfo?.rate_per_hour 
+                                   });
+                                 }
+                               }
+                               
+                               return cost > 0 ? `$${cost.toLocaleString()}` : 'Rate not set';
+                             })()}
+                           </span>
+                         </div>
+                         <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+                           <span>
+                             {(() => {
+                               // Get the calculated hours
+                               const hours = calculateTotalHours(selectedRequest.selected_activities, selectedRequest.service_offering_activities);
+                               
+                               // Get the rate (saved rate takes precedence, then current rate)
+                               const rate = selectedRequest.saved_assignee_rate || assigneeInfo?.rate_per_hour || 0;
+                               
+                               console.log('MyRequests Cost Breakdown:', { 
+                                 hours, 
+                                 calculatedHours, 
+                                 rate,
+                                 savedRate: selectedRequest.saved_assignee_rate,
+                                 currentRate: assigneeInfo?.rate_per_hour
+                               });
+                               
+                               return rate > 0 
+                                 ? `(${hours} hours × $${rate}/hour)`
+                                 : `(${hours} hours × Rate not set)`;
+                             })()}
+                           </span>
+                           {(!assigneeInfo?.rate_per_hour || assigneeInfo.rate_per_hour === 0) && selectedRequest.status === 'Estimation' && (
+                             <span className="text-orange-600 font-medium">
+                               Rate not available - contact admin for accurate costing
+                             </span>
+                           )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Collapsible Billability Percentage Section - Show when status is Review or after Review */}
+              {(selectedRequest.status === 'Review' || 
+                ['Approved', 'Implementing', 'Implemented', 'Awaiting Feedback', 'Closed'].includes(selectedRequest.status) ||
+                selectedRequest.billability_percentage !== null && selectedRequest.billability_percentage !== undefined) && (
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-lg p-4 shadow-lg">
+                    <button
+                      onClick={() => {
+                        const currentState = showBillabilityPercentage[selectedRequest.id] || false;
+                        setShowBillabilityPercentage(prev => ({
+                          ...prev,
+                          [selectedRequest.id]: !currentState
+                        }));
+                      }}
+                      className="w-full flex items-center justify-between text-left hover:bg-green-100 rounded-lg p-2 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Calculator className="h-5 w-5 text-green-600" />
+                        <h3 className="text-lg font-semibold text-green-700">Billability Percentage</h3>
+                        <Badge variant="outline" className="text-xs bg-green-100 text-green-600 border-green-300">
+                          {showBillabilityPercentage[selectedRequest.id] ? 'Expanded' : 'Collapsed'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-green-500">
+                          {showBillabilityPercentage[selectedRequest.id] ? 'Click to collapse' : 'Click to expand billability details'}
+                        </span>
+                        <svg 
+                          className={`h-5 w-5 text-green-500 transition-transform duration-200 ${
+                            showBillabilityPercentage[selectedRequest.id] ? 'rotate-180' : ''
+                          }`} 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </button>
+                    
+                    {showBillabilityPercentage[selectedRequest.id] && (
+                      <div className="mt-4 pt-4 border-t border-green-200 animate-in slide-in-from-top-2 duration-300">
+                     
+                     {(() => {
+                       // Read-only display for requestors (they can't edit billability percentage)
+                       return (
+                       <div className="space-y-2">
+                         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                           <DollarSign className="h-4 w-4" />
+                           Billability Percentage
+                         </div>
+                         <div className="text-3xl font-bold text-green-700 bg-white p-4 rounded-lg border-2 border-green-200">
+                           {selectedRequest.billability_percentage !== null && selectedRequest.billability_percentage !== undefined 
+                             ? `${selectedRequest.billability_percentage}%` 
+                             : 'Not set'}
+                         </div>
+                         {(selectedRequest.billability_percentage === null || selectedRequest.billability_percentage === undefined) && (
+                           <div className="text-sm text-orange-600 font-medium">
+                             Waiting for assignee to set billability percentage during Review status
+                           </div>
+                         )}
+                       </div>
+                     );
+                   })()}
+                   
+                   {/* Auto-calculated Billable Assignment Days */}
+                   {(selectedRequest.billability_percentage !== null && selectedRequest.billability_percentage !== undefined && selectedRequest.billability_percentage > 0) && (
+                     <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-lg p-6 shadow-lg">
+                       <div className="space-y-4">
+                         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                           <Clock className="h-4 w-4" />
+                           Number of days of billable assignment with the above allocation
+                         </div>
+                         <div className="text-3xl font-bold text-blue-700 bg-white p-4 rounded-lg border-2 border-blue-200">
+                           {(() => {
+                             // Calculate billable assignment days
+                             const totalHours = calculatedHours || 0;
+                             const billabilityPercentage = selectedRequest.billability_percentage || 0;
+                             
+                             if (totalHours > 0 && billabilityPercentage > 0) {
+                               // Assuming 8 hours per working day
+                               const hoursPerDay = 8;
+                               // Calculate effective hours per day based on billability percentage
+                               const effectiveHoursPerDay = (hoursPerDay * billabilityPercentage) / 100;
+                               // Calculate number of days needed
+                               const daysNeeded = Math.ceil(totalHours / effectiveHoursPerDay);
+                               
+                               console.log('MyRequests - Billable Days Calculation:', {
+                                 totalHours,
+                                 billabilityPercentage,
+                                 hoursPerDay,
+                                 effectiveHoursPerDay,
+                                 daysNeeded
+                               });
+                               
+                               return `${daysNeeded} ${daysNeeded === 1 ? 'day' : 'days'}`;
+                             }
+                             
+                             return 'Not calculated';
+                           })()}
+                         </div>
+                         <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-lg border border-blue-200">
+                           <div className="flex items-start gap-2">
+                             <div className="text-blue-600 mt-0.5">ℹ️</div>
+                             <div className="w-full">
+                               <button 
+                                 onClick={() => {
+                                   const currentState = showCalculationLogic[selectedRequest.id] || false;
+                                   setShowCalculationLogic(prev => ({
+                                     ...prev,
+                                     [selectedRequest.id]: !currentState
+                                   }));
+                                 }}
+                                 className="font-medium text-blue-800 hover:text-blue-900 cursor-pointer flex items-center gap-1 transition-colors"
+                               >
+                                 <span>Calculation Logic</span>
+                                 <span className="text-xs">
+                                   {showCalculationLogic[selectedRequest.id] ? '▼' : '▶'}
+                                 </span>
+                               </button>
+                               {showCalculationLogic[selectedRequest.id] && (
+                                 <div className="space-y-1 text-xs mt-2 animate-in slide-in-from-top-1 duration-200">
+                                   <div>• Total hours needed: <span className="font-mono">{calculatedHours || 0} hours</span></div>
+                                   <div>• Billability allocation: <span className="font-mono">{selectedRequest.billability_percentage || 0}%</span></div>
+                                   <div>• Effective hours per day: <span className="font-mono">{selectedRequest.billability_percentage ? Math.round((8 * selectedRequest.billability_percentage / 100) * 10) / 10 : 0} hours/day</span></div>
+                                   <div>• Working days needed: <span className="font-mono">⌈{calculatedHours || 0} ÷ {selectedRequest.billability_percentage ? Math.round((8 * selectedRequest.billability_percentage / 100) * 10) / 10 : 0}⌉</span></div>
+                                 </div>
+                               )}
+                             </div>
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Collapsible Activities Details Section - Show for Awaiting Feedback status and later */}
+              {['Awaiting Feedback', 'Closed'].includes(selectedRequest.status) && selectedRequest.timesheet_data && (
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-lg p-4 shadow-sm">
+                    <h3 className="text-xl font-bold flex items-center gap-2 mb-4 text-primary">
+                      <Calculator className="h-6 w-6" />
+                      Rate and Estimation
+                      {selectedRequest.estimation_saved_at && (
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          {selectedRequest.status === 'Estimation' ? 'Frozen' : 'Frozen on ' + format(new Date(selectedRequest.estimation_saved_at), 'MMM dd, yyyy')}
+                        </Badge>
+                      )}
+                      {!selectedRequest.estimation_saved_at && selectedRequest.status === 'Estimation' && (
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          Editable - Click "Save Activities" to freeze values
+                        </Badge>
+                      )}
+                    </h3>
+                    
+                    <div className="grid md:grid-cols-4 gap-6">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <Clock className="h-4 w-4" />
+                          Total Hours
+                          {selectedRequest.estimation_saved_at && (
+                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                              Frozen
+                            </Badge>
+                          )}
+                        </div>
+                         <div className="text-2xl font-bold text-secondary">
+                            {(() => {
+                              let displayHours;
+                              if (selectedRequest.estimation_saved_at) {
+                                // For frozen estimates, prefer saved value, but fallback to calculated if saved is 0
+                                displayHours = (selectedRequest.saved_total_hours && selectedRequest.saved_total_hours > 0) 
+                                  ? selectedRequest.saved_total_hours 
+                                  : calculatedHours;
+                              } else {
+                                // For non-frozen estimates, always use calculated
+                                displayHours = calculatedHours;
+                              }
+                              return displayHours;
+                            })()}
+                         </div>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedRequest.estimation_saved_at ? 'Frozen during estimation' : 'Total estimated hours'}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <Clock className="h-4 w-4" />
+                          Total PD Estimate
+                          {selectedRequest.estimation_saved_at && (
+                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                              Frozen
+                            </Badge>
+                          )}
+                        </div>
+                         <div className="text-2xl font-bold text-primary">
+                            {(() => {
+                              let displayPD;
+                              if (selectedRequest.estimation_saved_at) {
+                                // For frozen estimates, prefer saved value, but fallback to calculated if saved is 0
+                                displayPD = (selectedRequest.saved_total_pd_estimate && selectedRequest.saved_total_pd_estimate > 0) 
+                                  ? selectedRequest.saved_total_pd_estimate 
+                                  : calculatedPD;
+                              } else {
+                                // For non-frozen estimates, always use calculated
+                                displayPD = calculatedPD;
+                              }
+                              return displayPD;
+                            })()} PD
+                         </div>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedRequest.estimation_saved_at ? 'Frozen during estimation' : 'Total hours ÷ 8 (Person Days)'}
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <UserIcon className="h-4 w-4" />
+                          Assignee Billability Role
+                          {selectedRequest.estimation_saved_at && (
+                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                              Frozen
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-lg font-semibold text-foreground">
                           {selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at
                             ? (assigneeInfo?.designation || assigneeInfo?.title || 'Not assigned')
@@ -1329,11 +1649,14 @@ export default function MyRequests() {
                 </div>
               )}
 
-              {/* Feedback Form - Show when status is "Awaiting Feedback" */}
-              {selectedRequest.status === 'Awaiting Feedback' && (
+              {/* Feedback Section - Show when status is "Awaiting Feedback" */}
+              {selectedRequest.status === 'Awaiting Feedback' && currentUserId && (
                 <div>
-                  <RequestFeedbackForm
+                  <RequestFeedbackSection
                     requestId={selectedRequest.id}
+                    requestorId={selectedRequest.requestor_id || currentUserId}
+                    originalAssigneeId={selectedRequest.original_assignee_id || selectedRequest.assignee_id || null}
+                    currentUserId={currentUserId}
                     onFeedbackSubmitted={() => {
                       toast({
                         title: "Success",

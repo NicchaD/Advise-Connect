@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +34,244 @@ import { EditableProjectDetails } from '@/components/EditableProjectDetails';
 import { AISummarizeButton } from '@/components/AISummarizeButton';
 import { useNavigate } from 'react-router-dom';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+
+// Activities Details Section Component
+const ActivitiesDetailsSection: React.FC<{ timesheetData: any; requestId: string }> = ({ timesheetData, requestId }) => {
+  const [subActivityNames, setSubActivityNames] = useState<Record<string, string>>({});
+
+  // Extract unique sub-activity IDs from timesheet data
+  const subActivityIds = useMemo(() => {
+    const ids = new Set<string>();
+    Object.entries(timesheetData || {}).forEach(([key, value]) => {
+      if (typeof value === 'object' && value !== null) {
+        Object.entries(value).forEach(([activityKey, activityValue]) => {
+          if (typeof activityValue === 'boolean') {
+            // Extract sub-activity ID from the unique key format: subActivityId-day0-part1
+            const subActivityId = activityKey.split('-day')[0];
+            ids.add(subActivityId);
+          }
+        });
+      }
+    });
+    return Array.from(ids);
+  }, [timesheetData]);
+
+  // Fetch sub-activity names
+  useEffect(() => {
+    const fetchSubActivityNames = async () => {
+      if (subActivityIds.length === 0) return;
+      
+      try {
+        const { data: subActivities, error } = await supabase
+          .from('sub_activities')
+          .select('id, name')
+          .in('id', subActivityIds);
+        
+        if (error) {
+          console.error('Error fetching sub-activity names:', error);
+          return;
+        }
+        
+        const nameMap: Record<string, string> = {};
+        subActivities?.forEach(subActivity => {
+          nameMap[subActivity.id] = subActivity.name;
+        });
+        
+        setSubActivityNames(nameMap);
+        console.log('MyItems - Fetched sub-activity names:', nameMap);
+      } catch (error) {
+        console.error('Error fetching sub-activity names:', error);
+      }
+    };
+    
+    fetchSubActivityNames();
+  }, [subActivityIds, requestId]);
+
+  // Process timesheet data to get completed and non-completed activities
+  const { groupedCompleted, groupedNonCompleted, totalActivities, completedCount, pendingCount } = useMemo(() => {
+    const completedActivities: any[] = [];
+    const nonCompletedActivities: any[] = [];
+    
+    // Process the timesheet data to extract activity information
+    Object.entries(timesheetData || {}).forEach(([key, value]) => {
+      if (typeof value === 'object' && value !== null) {
+        // Handle day activities with unique keys
+        Object.entries(value).forEach(([activityKey, activityValue]) => {
+          if (typeof activityValue === 'boolean') {
+            // Extract sub-activity ID from the unique key
+            const subActivityId = activityKey.split('-day')[0];
+            const activityName = subActivityNames[subActivityId] || subActivityId;
+            
+            // This is a completion status for a day activity
+            const activityInfo = {
+              key: activityKey,
+              id: subActivityId,
+              name: activityName,
+              dayInfo: key,
+              completed: activityValue
+            };
+            
+            if (activityValue) {
+              completedActivities.push(activityInfo);
+            } else {
+              nonCompletedActivities.push(activityInfo);
+            }
+          }
+        });
+      }
+    });
+    
+    // Remove duplicates and group by activity name
+    const groupedCompleted: Record<string, any> = {};
+    const groupedNonCompleted: Record<string, any> = {};
+    
+    completedActivities.forEach(activity => {
+      if (!groupedCompleted[activity.name]) {
+        groupedCompleted[activity.name] = {
+          name: activity.name,
+          id: activity.id,
+          activities: []
+        };
+      }
+      groupedCompleted[activity.name].activities.push(activity);
+    });
+    
+    nonCompletedActivities.forEach(activity => {
+      if (!groupedNonCompleted[activity.name]) {
+        groupedNonCompleted[activity.name] = {
+          name: activity.name,
+          id: activity.id,
+          activities: []
+        };
+      }
+      groupedNonCompleted[activity.name].activities.push(activity);
+    });
+
+    // Calculate statistics
+    let totalActivities = 0;
+    let completedCount = 0;
+    let pendingCount = 0;
+    
+    Object.values(timesheetData || {}).forEach(dayData => {
+      if (typeof dayData === 'object' && dayData !== null) {
+        totalActivities += Object.keys(dayData).length;
+        Object.values(dayData).forEach(value => {
+          if (value === true) completedCount++;
+          if (value === false) pendingCount++;
+        });
+      }
+    });
+    
+    console.log('MyItems - Activities Details:', {
+      timesheetData,
+      subActivityIds,
+      subActivityNames,
+      completedActivities,
+      nonCompletedActivities,
+      groupedCompleted,
+      groupedNonCompleted
+    });
+    
+    return { groupedCompleted, groupedNonCompleted, totalActivities, completedCount, pendingCount };
+  }, [timesheetData, subActivityNames]);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-lg p-6 shadow-lg">
+        
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Completed Activities */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+              <h4 className="text-lg font-semibold text-green-700">Completed Work</h4>
+              <span className="text-sm text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                {Object.keys(groupedCompleted).length} activities
+              </span>
+            </div>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {Object.keys(groupedCompleted).length > 0 ? (
+                Object.entries(groupedCompleted).map(([activityName, activityGroup]) => (
+                  <div key={activityName} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg className="h-4 w-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium text-green-800">{activityGroup.name}</span>
+                    </div>
+                    <div className="text-xs text-green-600 ml-6">
+                      {activityGroup.activities.length} day part{activityGroup.activities.length > 1 ? 's' : ''} completed
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <svg className="h-12 w-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p>No completed activities yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Non-Completed Activities */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-4 h-4 bg-orange-500 rounded-full"></div>
+              <h4 className="text-lg font-semibold text-orange-700">Pending Work</h4>
+              <span className="text-sm text-orange-600 bg-orange-100 px-2 py-1 rounded-full">
+                {Object.keys(groupedNonCompleted).length} activities
+              </span>
+            </div>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {Object.keys(groupedNonCompleted).length > 0 ? (
+                Object.entries(groupedNonCompleted).map(([activityName, activityGroup]) => (
+                  <div key={activityName} className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg className="h-4 w-4 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-medium text-orange-800">{activityGroup.name}</span>
+                    </div>
+                    <div className="text-xs text-orange-600 ml-6">
+                      {activityGroup.activities.length} day part{activityGroup.activities.length > 1 ? 's' : ''} pending
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <svg className="h-12 w-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p>All activities completed!</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {/* Summary Statistics */}
+        <div className="mt-6 pt-4 border-t border-purple-200">
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="bg-white rounded-lg p-3 border border-purple-200">
+              <div className="text-2xl font-bold text-purple-700">{totalActivities}</div>
+              <div className="text-xs text-purple-600">Total Activities</div>
+            </div>
+            <div className="bg-white rounded-lg p-3 border border-purple-200">
+              <div className="text-2xl font-bold text-green-600">{completedCount}</div>
+              <div className="text-xs text-green-600">Completed</div>
+            </div>
+            <div className="bg-white rounded-lg p-3 border border-purple-200">
+              <div className="text-2xl font-bold text-orange-600">{pendingCount}</div>
+              <div className="text-xs text-orange-600">Pending</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface Request {
   id: string;
@@ -119,6 +357,8 @@ export default function MyItems() {
   const [calculatedHours, setCalculatedHours] = useState<number>(0);
   const [calculatedPD, setCalculatedPD] = useState<number>(0);
   const [showCalculationLogic, setShowCalculationLogic] = useState<Record<string, boolean>>({});
+  const [showActivitiesDetails, setShowActivitiesDetails] = useState<Record<string, boolean>>({});
+  const [showBillabilityPercentage, setShowBillabilityPercentage] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   // Utility functions
@@ -1459,16 +1699,267 @@ export default function MyItems() {
                 </div>
                )}
 
-              {/* Billability Percentage Section - Show when status is Review or after Review */}
+              {/* Rate and Estimation Section - Show when any estimation data exists */}
+              {(selectedRequest.status === 'Estimation' || 
+                selectedRequest.saved_total_hours || 
+                selectedRequest.estimation_saved_at ||
+                calculatedHours > 0 ||
+                (selectedRequest.selected_activities && Object.keys(selectedRequest.selected_activities).length > 0) ||
+                (selectedRequest.service_offering_activities && Object.keys(selectedRequest.service_offering_activities).length > 0) ||
+                ['Review', 'Approved', 'Approval', 'Implementing', 'Implemented', 'Awaiting Feedback', 'Closed'].includes(selectedRequest.status)) && (
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-lg p-6">
+                    <h3 className="text-xl font-bold flex items-center gap-2 mb-4 text-primary">
+                      <Calculator className="h-6 w-6" />
+                      Rate and Estimation
+                      {selectedRequest.estimation_saved_at && (
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          {selectedRequest.status === 'Estimation' ? 'Frozen' : 'Frozen on ' + formatDate(selectedRequest.estimation_saved_at)}
+                        </Badge>
+                      )}
+                      {!selectedRequest.estimation_saved_at && selectedRequest.status === 'Estimation' && (
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          Editable - Click "Save Activities" to freeze values
+                        </Badge>
+                      )}
+                    </h3>
+                    
+                    <div className="grid md:grid-cols-4 gap-6">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <Clock className="h-4 w-4" />
+                          Total Hours
+                          {selectedRequest.estimation_saved_at && (
+                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                              Frozen
+                            </Badge>
+                          )}
+                        </div>
+                         <div className="text-2xl font-bold text-secondary">
+                            {(() => {
+                              // If estimation is saved but saved_total_hours is 0 or null, and we have calculated hours > 0, use calculated
+                              let displayHours;
+                              if (selectedRequest.estimation_saved_at) {
+                                // For frozen estimates, prefer saved value, but fallback to calculated if saved is 0
+                                displayHours = (selectedRequest.saved_total_hours && selectedRequest.saved_total_hours > 0) 
+                                  ? selectedRequest.saved_total_hours 
+                                  : calculatedHours;
+                              } else {
+                                // For non-frozen estimates, always use calculated
+                                displayHours = calculatedHours;
+                              }
+                              
+                              console.log('MyItems Hours Display Logic:', {
+                                estimationSaved: !!selectedRequest.estimation_saved_at,
+                                savedHours: selectedRequest.saved_total_hours,
+                                calculatedHours,
+                                displayHours
+                              });
+                              
+                              return displayHours > 0 ? displayHours : 'Not calculated';
+                            })()}
+                          </div>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at
+                            ? 'Current calculated hours'
+                            : 'Frozen hours (saved during estimation)'
+                          }
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <Calculator className="h-4 w-4" />
+                          Person Days
+                          {selectedRequest.estimation_saved_at && (
+                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                              Frozen
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-2xl font-bold text-secondary">
+                          {(() => {
+                            // Similar logic for PD as hours
+                            let displayPD;
+                            if (selectedRequest.estimation_saved_at) {
+                              displayPD = (selectedRequest.saved_total_pd_estimate && selectedRequest.saved_total_pd_estimate > 0) 
+                                ? selectedRequest.saved_total_pd_estimate 
+                                : calculatedPD;
+                            } else {
+                              displayPD = calculatedPD;
+                            }
+                            
+                            return displayPD > 0 ? displayPD.toFixed(1) : 'Not calculated';
+                          })()}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at
+                            ? 'Current calculated person days'
+                            : 'Frozen person days (saved during estimation)'
+                          }
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <DollarSign className="h-4 w-4" />
+                          Hourly Rate
+                          {selectedRequest.estimation_saved_at && (
+                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                              Frozen
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-2xl font-bold text-secondary">
+                          {(() => {
+                            const rate = selectedRequest.saved_assignee_rate || assigneeInfo?.rate_per_hour || 0;
+                            return rate > 0 ? `$${rate}` : 'Rate not set';
+                          })()}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at
+                            ? 'Current assignee hourly rate'
+                            : 'Frozen rate (saved during estimation)'
+                          }
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <UserIcon className="h-4 w-4" />
+                          Assignee Billability Role
+                          {selectedRequest.estimation_saved_at && (
+                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                              Frozen
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-lg font-semibold text-secondary">
+                          {selectedRequest.saved_assignee_role || assigneeInfo?.title || 'Role not set'}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at
+                            ? 'Current billability role designation'
+                            : 'Frozen billability role (saved during estimation)'
+                          }
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cost Summary - Only show when we have both hours and rate */}
+                    {(selectedRequest.saved_total_cost || 
+                      selectedRequest.saved_total_hours || 
+                      calculatedHours > 0 ||
+                      ['Review', 'Approved', 'Approval', 'Implementing', 'Implemented', 'Awaiting Feedback', 'Closed'].includes(selectedRequest.status)) && (
+                      <div className="mt-4 pt-4 border-t border-primary/20">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-muted-foreground">Estimated Total Cost:</span>
+                          <span className="text-xl font-bold text-green-600">
+                             {(() => {
+                               let cost = 0;
+                               
+                               // First try to use saved cost if available
+                               if (selectedRequest.saved_total_cost && selectedRequest.saved_total_cost > 0) {
+                                 cost = selectedRequest.saved_total_cost;
+                               } 
+                               // Otherwise calculate cost using current rate and calculated hours
+                               else {
+                                 const rate = selectedRequest.saved_assignee_rate || assigneeInfo?.rate_per_hour || 0;
+                                 if (rate > 0) {
+                                   // Use the calculatedHours state variable that we know is working (38 hours)
+                                   const hours = calculatedHours;
+                                   cost = hours * rate;
+                                   console.log('MyItems Cost Calculation:', { 
+                                     hours, 
+                                     calculatedHours,
+                                     rate, 
+                                     cost,
+                                     savedRate: selectedRequest.saved_assignee_rate,
+                                     currentRate: assigneeInfo?.rate_per_hour 
+                                   });
+                                 }
+                               }
+                               
+                               return cost > 0 ? `$${cost.toLocaleString()}` : 'Rate not set';
+                             })()}
+                           </span>
+                         </div>
+                         <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+                           <span>
+                             {(() => {
+                               // Use the calculatedHours state variable that we know is working (38 hours)
+                               const hours = calculatedHours;
+                               
+                               // Get the rate (saved rate takes precedence, then current rate)
+                               const rate = selectedRequest.saved_assignee_rate || assigneeInfo?.rate_per_hour || 0;
+                               
+                               console.log('MyItems Cost Breakdown:', { 
+                                 hours, 
+                                 calculatedHours, 
+                                 rate,
+                                 savedRate: selectedRequest.saved_assignee_rate,
+                                 currentRate: assigneeInfo?.rate_per_hour
+                               });
+                               
+                               return rate > 0 
+                                 ? `(${hours} hours × $${rate}/hour)`
+                                 : `(${hours} hours × Rate not set)`;
+                             })()}
+                           </span>
+                           {(!assigneeInfo?.rate_per_hour || assigneeInfo.rate_per_hour === 0) && selectedRequest.status === 'Estimation' && (
+                             <span className="text-orange-600 font-medium">
+                               Rate not available - contact admin for accurate costing
+                             </span>
+                           )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Collapsible Billability Percentage Section - Show when status is Review or after Review */}
               {(selectedRequest.status === 'Review' || 
                 ['Approved', 'Implementing', 'Implemented', 'Awaiting Feedback', 'Closed'].includes(selectedRequest.status) ||
                 selectedRequest.billability_percentage !== null && selectedRequest.billability_percentage !== undefined) && (
                 <div className="space-y-4">
-                  <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-lg p-6 shadow-lg">
-                    <h3 className="text-xl font-bold flex items-center gap-2 mb-4 text-green-700">
-                      <Calculator className="h-6 w-6" />
-                      Billability Percentage
-                    </h3>
+                  <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-lg p-4 shadow-lg">
+                    <button
+                      onClick={() => {
+                        const currentState = showBillabilityPercentage[selectedRequest.id] || false;
+                        setShowBillabilityPercentage(prev => ({
+                          ...prev,
+                          [selectedRequest.id]: !currentState
+                        }));
+                      }}
+                      className="w-full flex items-center justify-between text-left hover:bg-green-100 rounded-lg p-2 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Calculator className="h-5 w-5 text-green-600" />
+                        <h3 className="text-lg font-semibold text-green-700">Billability Percentage</h3>
+                        <Badge variant="outline" className="text-xs bg-green-100 text-green-600 border-green-300">
+                          {showBillabilityPercentage[selectedRequest.id] ? 'Expanded' : 'Collapsed'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-green-500">
+                          {showBillabilityPercentage[selectedRequest.id] ? 'Click to collapse' : 'Click to expand billability details'}
+                        </span>
+                        <svg 
+                          className={`h-5 w-5 text-green-500 transition-transform duration-200 ${
+                            showBillabilityPercentage[selectedRequest.id] ? 'rotate-180' : ''
+                          }`} 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </button>
+                    
+                    {showBillabilityPercentage[selectedRequest.id] && (
+                      <div className="mt-4 pt-4 border-t border-green-200 animate-in slide-in-from-top-2 duration-300">
                      
                      {(() => {
                        // Check if user is assignee and status is Review for editable field
@@ -1607,10 +2098,11 @@ export default function MyItems() {
                        </div>
                      </div>
                    )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
-
 
               {/* Activities Section - Show for Estimation status or when activities exist (read-only for subsequent statuses) */}
               {(selectedRequest.status === 'Estimation' || 
@@ -1719,241 +2211,60 @@ export default function MyItems() {
                 />
               )}
 
-              {/* Rate and Estimation Section - Show when any estimation data exists */}
-              {(selectedRequest.status === 'Estimation' || 
-                selectedRequest.saved_total_hours || 
-                selectedRequest.estimation_saved_at ||
-                calculatedHours > 0 ||
-                (selectedRequest.selected_activities && Object.keys(selectedRequest.selected_activities).length > 0) ||
-                (selectedRequest.service_offering_activities && Object.keys(selectedRequest.service_offering_activities).length > 0) ||
-                ['Review', 'Approved', 'Approval', 'Implementing', 'Implemented', 'Awaiting Feedback', 'Closed'].includes(selectedRequest.status)) && (
-                <div className="space-y-4">
-                  <div className="bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-lg p-6">
-                    <h3 className="text-xl font-bold flex items-center gap-2 mb-4 text-primary">
-                      <Calculator className="h-6 w-6" />
-                      Rate and Estimation
-                      {selectedRequest.estimation_saved_at && (
-                        <Badge variant="outline" className="ml-2 text-xs">
-                          {selectedRequest.status === 'Estimation' ? 'Frozen' : 'Frozen on ' + formatDate(selectedRequest.estimation_saved_at)}
-                        </Badge>
-                      )}
-                      {!selectedRequest.estimation_saved_at && selectedRequest.status === 'Estimation' && (
-                        <Badge variant="secondary" className="ml-2 text-xs">
-                          Editable - Click "Save Activities" to freeze values
-                        </Badge>
-                      )}
-                    </h3>
-                    
-                    <div className="grid md:grid-cols-4 gap-6">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                          <Clock className="h-4 w-4" />
-                          Total Hours
-                          {selectedRequest.estimation_saved_at && (
-                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                              Frozen
-                            </Badge>
-                          )}
-                        </div>
-                         <div className="text-2xl font-bold text-secondary">
-                            {(() => {
-                              // If estimation is saved but saved_total_hours is 0 or null, and we have calculated hours > 0, use calculated
-                              let displayHours;
-                              if (selectedRequest.estimation_saved_at) {
-                                // For frozen estimates, prefer saved value, but fallback to calculated if saved is 0
-                                displayHours = (selectedRequest.saved_total_hours && selectedRequest.saved_total_hours > 0) 
-                                  ? selectedRequest.saved_total_hours 
-                                  : calculatedHours;
-                              } else {
-                                // For non-frozen estimates, always use calculated
-                                displayHours = calculatedHours;
-                              }
-                              
-                              console.log('MyItems Total Hours Display:', {
-                                status: selectedRequest.status,
-                                estimationSaved: selectedRequest.estimation_saved_at,
-                                calculatedHours,
-                                savedTotalHours: selectedRequest.saved_total_hours,
-                                displayHours,
-                                finalDisplay: displayHours > 0 ? displayHours : 'Not calculated',
-                                logic: selectedRequest.estimation_saved_at ? 'frozen-fallback' : 'calculated'
-                              });
-                              return displayHours > 0 ? displayHours : 'Not calculated';
-                            })()}
-                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {selectedRequest.estimation_saved_at ? 'Frozen during estimation' : 'Total estimated hours'}
-                        </div>
-                      </div>
+              {/* Timesheet Section - Show for requests with status "Implementing" */}
+              {selectedRequest.status === 'Implementing' && (selectedRequest.selected_activities || selectedRequest.service_offering_activities) && renderTimesheetSection()}
 
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                          <Clock className="h-4 w-4" />
-                          Total PD Estimate
-                          {selectedRequest.estimation_saved_at && (
-                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                              Frozen
-                            </Badge>
-                          )}
-                        </div>
-                         <div className="text-2xl font-bold text-primary">
-                            {(() => {
-                              // If estimation is saved but saved_total_pd_estimate is 0 or null, and we have calculated PD > 0, use calculated
-                              let displayPD;
-                              if (selectedRequest.estimation_saved_at) {
-                                // For frozen estimates, prefer saved value, but fallback to calculated if saved is 0
-                                displayPD = (selectedRequest.saved_total_pd_estimate && selectedRequest.saved_total_pd_estimate > 0) 
-                                  ? selectedRequest.saved_total_pd_estimate 
-                                  : calculatedPD;
-                              } else {
-                                // For non-frozen estimates, always use calculated
-                                displayPD = calculatedPD;
-                              }
-                              
-                              console.log('MyItems Total PD Display:', {
-                                status: selectedRequest.status,
-                                estimationSaved: selectedRequest.estimation_saved_at,
-                                calculatedPD,
-                                savedTotalPD: selectedRequest.saved_total_pd_estimate,
-                                displayPD,
-                                finalDisplay: displayPD > 0 ? `${displayPD} PD` : 'Not calculated',
-                                logic: selectedRequest.estimation_saved_at ? 'frozen-fallback' : 'calculated'
-                              });
-                              return displayPD > 0 ? `${displayPD} PD` : 'Not calculated';
-                            })()}
-                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {selectedRequest.estimation_saved_at ? 'Frozen during estimation' : 'Total hours ÷ 8 (Person Days)'}
-                        </div>
+              {/* Collapsible Activities Details Section - Show for Implemented status and later */}
+              {['Implemented', 'Awaiting Feedback', 'Closed'].includes(selectedRequest.status) && selectedRequest.timesheet_data && (
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-lg p-4 shadow-sm">
+                    <button
+                      onClick={() => {
+                        const currentState = showActivitiesDetails[selectedRequest.id] || false;
+                        setShowActivitiesDetails(prev => ({
+                          ...prev,
+                          [selectedRequest.id]: !currentState
+                        }));
+                      }}
+                      className="w-full flex items-center justify-between text-left hover:bg-purple-100 rounded-lg p-2 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <svg className="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h3 className="text-lg font-semibold text-purple-700">Activities Details</h3>
+                        <Badge variant="outline" className="text-xs bg-purple-100 text-purple-600 border-purple-300">
+                          {showActivitiesDetails[selectedRequest.id] ? 'Expanded' : 'Collapsed'}
+                        </Badge>
                       </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                          <UserIcon className="h-4 w-4" />
-                          Assignee Billability Role
-                          {selectedRequest.estimation_saved_at && (
-                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                              Frozen
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-lg font-semibold text-foreground">
-                          {selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at
-                            ? (assigneeInfo?.designation || assigneeInfo?.title || 'Not assigned')
-                            : (selectedRequest.saved_assignee_role || assigneeInfo?.designation || assigneeInfo?.title || 'Not assigned')
-                          }
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at
-                            ? 'Current billability role designation'
-                            : 'Frozen billability role (saved during estimation)'
-                          }
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-purple-500">
+                          {showActivitiesDetails[selectedRequest.id] ? 'Click to collapse' : 'Click to expand activities'}
+                        </span>
+                        <svg 
+                          className={`h-5 w-5 text-purple-500 transition-transform duration-200 ${
+                            showActivitiesDetails[selectedRequest.id] ? 'rotate-180' : ''
+                          }`} 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
                       </div>
-                      
-                       <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                          <DollarSign className="h-4 w-4" />
-                          Rate for the Assignee
-                          {selectedRequest.estimation_saved_at && (
-                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                              Frozen
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-lg font-semibold text-green-600">
-                          {(() => {
-                            let rate = 0;
-                            if (selectedRequest.status === 'Estimation' && !selectedRequest.estimation_saved_at) {
-                              rate = assigneeInfo?.rate_per_hour || 0;
-                            } else {
-                              rate = selectedRequest.saved_assignee_rate || assigneeInfo?.rate_per_hour || 0;
-                            }
-                            
-                            return rate > 0 ? `$${rate}/hour` : 'Not set';
-                          })()}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {selectedRequest.estimation_saved_at ? 'Frozen during estimation' : 'Hourly billing rate'}
-                        </div>
-                      </div>
-                    </div>
+                    </button>
                     
-                    {/* Always show total cost section when we have hours or cost data */}
-                    {(selectedRequest.status === 'Estimation' || 
-                      selectedRequest.saved_total_cost || 
-                      selectedRequest.saved_total_hours ||
-                      calculatedHours > 0 ||
-                      ['Review', 'Approved', 'Approval', 'Implementing', 'Implemented', 'Awaiting Feedback', 'Closed'].includes(selectedRequest.status)) && (
-                      <div className="mt-4 pt-4 border-t border-primary/20">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="font-medium text-muted-foreground">Estimated Total Cost:</span>
-                          <span className="text-xl font-bold text-green-600">
-                             {(() => {
-                               let cost = 0;
-                               
-                               // First try to use saved cost if available
-                               if (selectedRequest.saved_total_cost && selectedRequest.saved_total_cost > 0) {
-                                 cost = selectedRequest.saved_total_cost;
-                               } 
-                               // Otherwise calculate cost using current rate and calculated hours
-                               else {
-                                 const rate = selectedRequest.saved_assignee_rate || assigneeInfo?.rate_per_hour || 0;
-                                 if (rate > 0) {
-                                   // Use the calculatedHours state variable that we know is working (38 hours)
-                                   const hours = calculatedHours;
-                                   cost = hours * rate;
-                                   console.log('MyItems Cost Calculation:', { 
-                                     hours, 
-                                     calculatedHours,
-                                     rate, 
-                                     cost,
-                                     savedRate: selectedRequest.saved_assignee_rate,
-                                     currentRate: assigneeInfo?.rate_per_hour 
-                                   });
-                                 }
-                               }
-                               
-                               return cost > 0 ? `$${cost.toLocaleString()}` : 'Rate not set';
-                             })()}
-                           </span>
-                         </div>
-                         <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
-                           <span>
-                             {(() => {
-                               // Use the calculatedHours state variable that we know is working (38 hours)
-                               const hours = calculatedHours;
-                               
-                               // Get the rate (saved rate takes precedence, then current rate)
-                               const rate = selectedRequest.saved_assignee_rate || assigneeInfo?.rate_per_hour || 0;
-                               
-                               console.log('MyItems Cost Breakdown:', { 
-                                 hours, 
-                                 calculatedHours, 
-                                 rate,
-                                 savedRate: selectedRequest.saved_assignee_rate,
-                                 currentRate: assigneeInfo?.rate_per_hour
-                               });
-                               
-                               return rate > 0 
-                                 ? `(${hours} hours × $${rate}/hour)`
-                                 : `(${hours} hours × Rate not set)`;
-                             })()}
-                           </span>
-                           {(!assigneeInfo?.rate_per_hour || assigneeInfo.rate_per_hour === 0) && selectedRequest.status === 'Estimation' && (
-                             <span className="text-orange-600 font-medium">
-                               Rate not available - contact admin for accurate costing
-                             </span>
-                           )}
-                        </div>
+                    {showActivitiesDetails[selectedRequest.id] && (
+                      <div className="mt-4 pt-4 border-t border-purple-200 animate-in slide-in-from-top-2 duration-300">
+                        <ActivitiesDetailsSection 
+                          timesheetData={selectedRequest.timesheet_data} 
+                          requestId={selectedRequest.id}
+                        />
                       </div>
                     )}
                   </div>
                 </div>
               )}
-
-              {/* Timesheet Section - Show for requests with status "Implementing" */}
-              {selectedRequest.status === 'Implementing' && (selectedRequest.selected_activities || selectedRequest.service_offering_activities) && renderTimesheetSection()}
 
               {/* Comments Section */}
               <RequestComments 
