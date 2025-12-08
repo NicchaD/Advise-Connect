@@ -173,12 +173,6 @@ const ActivitiesDetailsSection: React.FC<{ timesheetData: any; requestId: string
   return (
     <div className="space-y-4">
       <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-lg p-6 shadow-lg">
-        <h3 className="text-xl font-bold flex items-center gap-2 mb-6 text-purple-700">
-          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Activities Details
-        </h3>
         
         <div className="grid md:grid-cols-2 gap-6">
           {/* Completed Activities */}
@@ -400,6 +394,8 @@ export default function MyRequests() {
   const [calculatedPD, setCalculatedPD] = useState<number>(0);
   const [assigneeInfo, setAssigneeInfo] = useState<any>(null);
   const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [showTimeline, setShowTimeline] = useState<Record<string, boolean>>({});
+  const [showActivitiesDetails, setShowActivitiesDetails] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -1264,12 +1260,56 @@ export default function MyRequests() {
                 </div>
               )}
 
-              {/* Activities Details Section - Show for Awaiting Feedback status and later */}
+              {/* Collapsible Activities Details Section - Show for Awaiting Feedback status and later */}
               {['Awaiting Feedback', 'Closed'].includes(selectedRequest.status) && selectedRequest.timesheet_data && (
-                <ActivitiesDetailsSection 
-                  timesheetData={selectedRequest.timesheet_data} 
-                  requestId={selectedRequest.id}
-                />
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-lg p-4 shadow-sm">
+                    <button
+                      onClick={() => {
+                        const currentState = showActivitiesDetails[selectedRequest.id] || false;
+                        setShowActivitiesDetails(prev => ({
+                          ...prev,
+                          [selectedRequest.id]: !currentState
+                        }));
+                      }}
+                      className="w-full flex items-center justify-between text-left hover:bg-purple-100 rounded-lg p-2 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <svg className="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h3 className="text-lg font-semibold text-purple-700">Activities Details</h3>
+                        <Badge variant="outline" className="text-xs bg-purple-100 text-purple-600 border-purple-300">
+                          {showActivitiesDetails[selectedRequest.id] ? 'Expanded' : 'Collapsed'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-purple-500">
+                          {showActivitiesDetails[selectedRequest.id] ? 'Click to collapse' : 'Click to expand activities'}
+                        </span>
+                        <svg 
+                          className={`h-5 w-5 text-purple-500 transition-transform duration-200 ${
+                            showActivitiesDetails[selectedRequest.id] ? 'rotate-180' : ''
+                          }`} 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </button>
+                    
+                    {showActivitiesDetails[selectedRequest.id] && (
+                      <div className="mt-4 pt-4 border-t border-purple-200 animate-in slide-in-from-top-2 duration-300">
+                        <ActivitiesDetailsSection 
+                          timesheetData={selectedRequest.timesheet_data} 
+                          requestId={selectedRequest.id}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
 
               {/* Timesheet Section - Show for requests with status "Implementing" in read-only mode */}
@@ -1289,9 +1329,6 @@ export default function MyRequests() {
                 </div>
               )}
 
-              {/* Request Timeline */}
-              <RequestTimeline requestId={selectedRequest.id} />
-
               {/* Feedback Form - Show when status is "Awaiting Feedback" */}
               {selectedRequest.status === 'Awaiting Feedback' && (
                 <div>
@@ -1309,6 +1346,53 @@ export default function MyRequests() {
                   />
                 </div>
               )}
+
+              {/* Collapsible Request Timeline */}
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-2 border-slate-300 rounded-lg p-4 shadow-sm">
+                  <button
+                    onClick={() => {
+                      const currentState = showTimeline[selectedRequest.id] || false;
+                      setShowTimeline(prev => ({
+                        ...prev,
+                        [selectedRequest.id]: !currentState
+                      }));
+                    }}
+                    className="w-full flex items-center justify-between text-left hover:bg-slate-100 rounded-lg p-2 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <svg className="h-5 w-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <h3 className="text-lg font-semibold text-slate-700">Request Timeline</h3>
+                      <Badge variant="outline" className="text-xs bg-slate-100 text-slate-600 border-slate-300">
+                        {showTimeline[selectedRequest.id] ? 'Expanded' : 'Collapsed'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-500">
+                        {showTimeline[selectedRequest.id] ? 'Click to collapse' : 'Click to expand timeline'}
+                      </span>
+                      <svg 
+                        className={`h-5 w-5 text-slate-500 transition-transform duration-200 ${
+                          showTimeline[selectedRequest.id] ? 'rotate-180' : ''
+                        }`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </button>
+                  
+                  {showTimeline[selectedRequest.id] && (
+                    <div className="mt-4 pt-4 border-t border-slate-200 animate-in slide-in-from-top-2 duration-300">
+                      <RequestTimeline requestId={selectedRequest.id} />
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* Comments Section - Always show for all requests */}
               {currentUserId && (

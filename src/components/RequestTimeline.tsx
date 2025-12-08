@@ -78,8 +78,7 @@ export default function RequestTimeline({ requestId }: RequestTimelineProps) {
 
   const fetchConsultantNames = async () => {
     try {
-      // Note: We can't get user_id from basic view for security
-      // Instead, we'll build names map from request history where we have the data
+      // Get all user IDs from reassignment history
       const { data: historyData, error: historyError } = await supabase
         .from('request_history')
         .select('old_value, new_value')
@@ -88,10 +87,33 @@ export default function RequestTimeline({ requestId }: RequestTimelineProps) {
 
       if (historyError) throw historyError;
 
+      // Extract all unique user IDs from old_value and new_value
+      const userIds = new Set<string>();
+      historyData?.forEach(entry => {
+        if (entry.old_value) userIds.add(entry.old_value);
+        if (entry.new_value) userIds.add(entry.new_value);
+      });
+
+      if (userIds.size === 0) {
+        setConsultantNames({});
+        return;
+      }
+
+      // Fetch user profiles for these IDs
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, username, email')
+        .in('user_id', Array.from(userIds));
+
+      if (profilesError) throw profilesError;
+
       const namesMap: Record<string, string> = {};
-      // We'll rely on the names already stored in requests table
-      // This is a limitation of the security restrictions
+      profilesData?.forEach(profile => {
+        namesMap[profile.user_id] = getUserDisplayName(profile);
+      });
+
       setConsultantNames(namesMap);
+      console.log('Fetched consultant names:', namesMap);
     } catch (error) {
       console.error('Error fetching consultant names:', error);
     }
@@ -141,7 +163,16 @@ export default function RequestTimeline({ requestId }: RequestTimelineProps) {
   };
 
   const getAssigneeName = (userId: string): string => {
-    return consultantNames[userId] || 'Unknown Consultant';
+    if (consultantNames[userId]) {
+      return consultantNames[userId];
+    }
+    
+    // Fallback to getUserDisplayName utility with minimal profile data
+    return getUserDisplayName({ 
+      user_id: userId, 
+      username: '', 
+      email: '' 
+    });
   };
 
   const renderTimelineEntry = (entry: TimelineEntry, index: number) => {
