@@ -1,20 +1,106 @@
+/**
+ * useFormPersistence.ts - Form Data Persistence Hook
+ * 
+ * OVERVIEW:
+ * A custom React hook that provides automatic form data persistence across browser
+ * sessions and page refreshes. It uses a dual-storage approach with localStorage
+ * for fast access and Supabase database for cross-session recovery.
+ * 
+ * FEATURES:
+ * 1. Dual Storage Strategy - localStorage (fast) + database (persistent)
+ * 2. Session Management - Unique session IDs for data isolation
+ * 3. Automatic Expiry - Configurable expiration times for data cleanup
+ * 4. Cross-Session Recovery - Restore data after login/logout cycles
+ * 5. Error Resilience - Graceful fallbacks when storage fails
+ * 
+ * USE CASES:
+ * - Multi-step form wizards that shouldn't lose progress
+ * - Draft saving for complex request submissions
+ * - User experience continuity across browser sessions
+ * - Recovery from accidental page refreshes or navigation
+ * 
+ * STORAGE STRATEGY:
+ * 1. Primary: localStorage for immediate access and offline capability
+ * 2. Backup: Supabase database for cross-session and cross-device access
+ * 3. Fallback: Graceful degradation when either storage method fails
+ * 
+ * DATA LIFECYCLE:
+ * Save → localStorage + Database → Load (localStorage first, then DB) → Auto-expire
+ */
+
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+/**
+ * FormData Interface
+ * 
+ * Generic interface for form data that can contain any form fields.
+ * Provides type safety while maintaining flexibility for different form structures.
+ */
 interface FormData {
   [key: string]: any;
 }
 
+/**
+ * FormPersistenceOptions Interface
+ * 
+ * Configuration options for the form persistence hook.
+ * 
+ * @param formType - Type of form being persisted ('single_service' | 'multi_service')
+ * @param expiryDuration - How long to keep data (in minutes, default: 10)
+ */
 interface FormPersistenceOptions {
   formType: 'single_service' | 'multi_service';
   expiryDuration?: number; // in minutes, default 10
 }
 
+/**
+ * useFormPersistence Hook
+ * 
+ * PARAMETERS:
+ * @param formType - Type of form ('single_service' | 'multi_service')
+ * @param expiryDuration - Data expiration time in minutes (default: 10)
+ * 
+ * RETURNS:
+ * - sessionId: Unique identifier for this form session
+ * - saveFormData: Function to persist form data
+ * - loadFormData: Function to retrieve saved form data
+ * - clearFormData: Function to remove saved form data
+ * - checkForRestoredData: Function to check for recoverable data after login
+ * 
+ * USAGE EXAMPLE:
+ * ```typescript
+ * const { saveFormData, loadFormData, clearFormData } = useFormPersistence({
+ *   formType: 'single_service',
+ *   expiryDuration: 15
+ * });
+ * 
+ * // Save form data
+ * await saveFormData(formValues);
+ * 
+ * // Load saved data
+ * const savedData = await loadFormData();
+ * 
+ * // Clear saved data
+ * await clearFormData();
+ * ```
+ */
 export function useFormPersistence({ formType, expiryDuration = 10 }: FormPersistenceOptions) {
+  /**
+   * Session ID Management
+   * 
+   * Creates or retrieves a unique session identifier for this form instance.
+   * The session ID persists across page refreshes but is unique per browser session.
+   * 
+   * FORMAT: session_{timestamp}_{randomString}
+   * STORAGE: localStorage for persistence across page refreshes
+   * LIFECYCLE: Created once per browser session, cleared on browser close
+   */
   const [sessionId] = useState(() => {
-    // Generate or retrieve session ID
+    // Attempt to retrieve existing session ID from localStorage
     let id = localStorage.getItem('formSessionId');
     if (!id) {
+      // Generate new unique session ID if none exists
       id = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       localStorage.setItem('formSessionId', id);
     }

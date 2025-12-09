@@ -1,31 +1,103 @@
+/**
+ * Dashboard.tsx - Main User Dashboard
+ * 
+ * OVERVIEW:
+ * The Dashboard serves as the central hub for all users in the Advise-Connect platform.
+ * It provides role-based views, comprehensive analytics, quick actions, and real-time
+ * insights into requests, assignments, and system activity.
+ * 
+ * FEATURES:
+ * 1. Role-Based Interface - Different views for Requestors, Service Providers, and Admins
+ * 2. Analytics Dashboard - Charts and metrics for request trends and performance
+ * 3. Quick Actions - Fast access to common tasks and navigation
+ * 4. Real-time Updates - Live data synchronization with automatic refresh
+ * 5. Responsive Design - Optimized for desktop, tablet, and mobile devices
+ * 
+ * USER ROLES & VIEWS:
+ * - Requestor: View submitted requests, create new requests, track progress
+ * - Service Provider: View assigned items, manage workload, update status
+ * - Administrator: System overview, user management, analytics, configuration
+ * 
+ * COMPONENTS:
+ * - Statistics Cards: Key metrics and KPIs
+ * - Charts & Graphs: Visual data representation using Recharts
+ * - Recent Activity: Latest requests and status changes
+ * - Quick Actions: Navigation shortcuts and common tasks
+ * - Insights Section: AI-powered insights and recommendations
+ * 
+ * DATA SOURCES:
+ * - Supabase: Real-time database queries for requests, users, and analytics
+ * - User Profiles: Role-based data filtering and personalization
+ * - Request Analytics: Trend analysis and performance metrics
+ */
+
+// React Core - Essential React functionality for component state and lifecycle
 import React, { useState, useEffect } from 'react';
+
+// Navigation - React Router for programmatic navigation
 import { useNavigate } from 'react-router-dom';
+
+// UI Components - shadcn/ui component library for consistent design
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CalendarDays, TrendingUp, Clock, Users, Target, BarChart3, Home, User, Shield, Settings, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
-import { InsightsSection } from '@/components/InsightsSection';
+
+// Icons - Lucide React icons for visual elements and navigation
+import { 
+  CalendarDays,    // Calendar and date-related elements
+  TrendingUp,      // Growth and positive trends
+  Clock,           // Time-related elements
+  Users,           // User and team representations
+  Target,          // Goals and objectives
+  BarChart3,       // Analytics and charts
+  Home,            // Home/dashboard navigation
+  User,            // User profile elements
+  Shield,          // Security and admin functions
+  Settings,        // Configuration and settings
+  ChevronLeft,     // Navigation arrows
+  ChevronRight,    // Navigation arrows
+  ExternalLink     // External navigation indicators
+} from 'lucide-react';
+
+// Custom Components - Application-specific components
+import { InsightsSection } from '@/components/InsightsSection';  // AI-powered insights and analytics
+
+// Database Integration - Supabase client for real-time data operations
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { fetchUserProfiles, getUserDisplayName, getRequestorDisplayName, createProfileLookupMap, type UserProfile } from '@/lib/userUtils';
+
+// Custom Hooks - Application-specific functionality
+import { useToast } from '@/hooks/use-toast';  // Toast notification system
+
+// Utility Functions - User management and data processing utilities
+import { 
+  fetchUserProfiles,        // Fetch user profile data
+  getUserDisplayName,       // Format user display names
+  getRequestorDisplayName,  // Format requestor display names
+  createProfileLookupMap,   // Create user lookup mappings
+  type UserProfile          // TypeScript interface for user profiles
+} from '@/lib/userUtils';
+
+// Type Definitions - Supabase user type definitions
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+
+// Charts & Analytics - Recharts library for data visualization
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
-  ResponsiveContainer
+  BarChart,           // Bar chart component
+  Bar,                // Bar chart bars
+  XAxis,              // X-axis configuration
+  YAxis,              // Y-axis configuration
+  CartesianGrid,      // Chart grid lines
+  Tooltip,            // Interactive tooltips
+  Legend,             // Chart legends
+  PieChart,           // Pie chart component
+  Pie,                // Pie chart slices
+  Cell,               // Individual chart cells
+  AreaChart,          // Area chart component
+  Area,               // Area chart areas
+  ResponsiveContainer // Responsive chart container
 } from 'recharts';
 
 // Tool ID to name mapping
