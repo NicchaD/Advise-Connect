@@ -64,6 +64,12 @@ export const StatusTransitionDropdown = ({
         .eq('from_status', currentStatus);
 
       if (error) throw error;
+      
+      // Debug logging for "Feedback Received" status
+      if (currentStatus === 'Feedback Received') {
+        console.log('Debug - Fetched transitions for Feedback Received:', data);
+      }
+      
       setTransitions(data || []);
     } catch (error) {
       console.error('Error fetching transitions:', error);
@@ -264,6 +270,19 @@ export const StatusTransitionDropdown = ({
   };
 
   const canTransition = (transition: Transition) => {
+    // Debug logging for "Feedback Received" to "Implemented" transition
+    if (currentStatus === 'Feedback Received' && transition.to_status === 'Implemented') {
+      console.log('Debug - Feedback Received to Implemented transition check:', {
+        isAdmin,
+        isAssignee,
+        userRole,
+        userTitle,
+        requiredRole: transition.role_required,
+        currentStatus,
+        toStatus: transition.to_status
+      });
+    }
+    
     if (isAdmin) return true;
     
     // Special case for "Approval" status: only the assignee can make transitions
@@ -283,7 +302,14 @@ export const StatusTransitionDropdown = ({
     }
     
     // Check both role and title for advisory team roles
-    return userRole === transition.role_required || userTitle === transition.role_required;
+    const canTransitionResult = userRole === transition.role_required || userTitle === transition.role_required;
+    
+    // Debug logging for "Feedback Received" to "Implemented" transition
+    if (currentStatus === 'Feedback Received' && transition.to_status === 'Implemented') {
+      console.log('Debug - Can transition result:', canTransitionResult);
+    }
+    
+    return canTransitionResult;
   };
 
   const availableTransitions = transitions.filter(canTransition);
