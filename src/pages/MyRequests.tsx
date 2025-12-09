@@ -44,6 +44,7 @@ import { RequestComments } from '@/components/RequestComments';
 import { RateEstimationSection } from '@/components/RateEstimationSection';
 import { BillabilityPercentageSection } from '@/components/BillabilityPercentageSection';
 import { ActivitiesDetailsSection } from '@/components/ActivitiesDetailsSection';
+import { RequestDetailsSection } from '@/components/RequestDetailsSection';
 import type { Request, AssigneeInfo, getSectionVisibility } from '@/types/shared';
 
 /**
@@ -759,96 +760,14 @@ export default function MyRequests() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="font-semibold mb-3">Project Information</h4>
-                  <div className="space-y-2 text-sm">
-                    <p><strong>Project ID:</strong> {selectedRequest.project_data?.projectId || 'Not provided'}</p>
-                    <p><strong>Project Name:</strong> {selectedRequest.project_data?.projectName || 'Not provided'}</p>
-                    <p><strong>Account:</strong> {selectedRequest.project_data?.accountName || 'Not provided'}</p>
-                    <p><strong>Owning Unit:</strong> {selectedRequest.project_data?.projectOwningUnit || 'Not provided'}</p>
-                    <p><strong>Delivery Excellence POC:</strong> {selectedRequest.project_data?.deliveryExcellencePOC || 'Not provided'}</p>
-                    <p><strong>PM ID:</strong> {selectedRequest.project_data?.projectPM || 'Not provided'}</p>
-                    <p><strong>POC Email:</strong> {selectedRequest.project_data?.projectPOCEmail || 'Not provided'}</p>
-                    {selectedRequest.project_data?.los && (
-                      <p><strong>Line of Service:</strong> {selectedRequest.project_data.los}</p>
-                    )}
-                    {selectedRequest.project_data?.vertical && (
-                      <p><strong>Vertical:</strong> {selectedRequest.project_data.vertical}</p>
-                    )}
-                    {selectedRequest.project_data?.businessUnit && (
-                      <p><strong>Business Unit:</strong> {selectedRequest.project_data.businessUnit}</p>
-                    )}
-                    {selectedRequest.project_data?.marketUnit && (
-                      <p><strong>Market Unit:</strong> {selectedRequest.project_data.marketUnit}</p>
-                    )}
-                  </div>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold mb-3">Service Details</h4>
-                  <div className="space-y-2 text-sm">
-                    <p><strong>Service:</strong> {getServiceNamesFromRequest(selectedRequest)}</p>
-                    <p><strong>Status:</strong> 
-                      <Badge className={`ml-2 ${STATUS_COLORS[selectedRequest.status as keyof typeof STATUS_COLORS]}`}>
-                        {selectedRequest.status}
-                      </Badge>
-                    </p>
-                    <p><strong>Submitted:</strong> {format(new Date(selectedRequest.submission_date), 'PPP')}</p>
-                    {selectedRequest.service_specific_data?.expectedStartDate && (
-                      <p><strong>Expected Start:</strong> {format(new Date(selectedRequest.service_specific_data.expectedStartDate), 'PPP')}</p>
-                    )}
-                    {selectedRequest.current_assignee_name && (
-                      <p><strong>Current Assignee:</strong> {selectedRequest.current_assignee_name}</p>
-                    )}
-                    {selectedRequest.original_assignee_name && (
-                      <p><strong>Original Assignee:</strong> {selectedRequest.original_assignee_name}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {selectedRequest.description && (
-                <div>
-                  <h4 className="font-semibold mb-3">Requirements</h4>
-                  <p className="text-sm bg-muted p-4 rounded-lg">{selectedRequest.description}</p>
-                </div>
-              )}
-
-              {selectedRequest.service_specific_data?.expectedBusinessImpact && (
-                <div>
-                  <h4 className="font-semibold mb-3">Expected Business Impact</h4>
-                  <p className="text-sm bg-muted p-4 rounded-lg">{selectedRequest.service_specific_data.expectedBusinessImpact}</p>
-                </div>
-              )}
-
-              {/* Show service offerings from service_specific_data if available */}
-              {selectedRequest.service_specific_data?.selectedOfferings?.length > 0 && (
-                <div>
-                  <h4 className="font-semibold mb-3">Selected Offerings</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedRequest.service_specific_data.selectedOfferings.map((offering: string, index: number) => (
-                      <Badge key={index} variant="outline">
-                        {getToolDisplayName(offering)}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* Fallback to selected_tools if selectedOfferings is not available */}
-              {(!selectedRequest.service_specific_data?.selectedOfferings || selectedRequest.service_specific_data.selectedOfferings.length === 0) && selectedRequest.selected_tools?.length > 0 && (
-                <div>
-                  <h4 className="font-semibold mb-3">Selected Tools</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedRequest.selected_tools.map((tool, index) => (
-                      <Badge key={index} variant="outline">
-                        {getToolDisplayName(tool)}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Request Details Section - Reusable Component */}
+              <RequestDetailsSection
+                request={selectedRequest as Request}
+                advisoryServiceMap={advisoryServices}
+                serviceOfferingMap={serviceOfferings}
+                toolsMap={TOOL_ID_TO_NAME_MAP}
+                formatDate={(date) => format(new Date(date), 'PPP')}
+              />
 
               {/* Rate and Estimation Section - Show when any estimation data exists */}
               {(selectedRequest.status === 'Estimation' || 
