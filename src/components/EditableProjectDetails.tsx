@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Settings, Edit, Save, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Settings, Edit, Save, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -38,6 +39,7 @@ export const EditableProjectDetails: React.FC<EditableProjectDetailsProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState<ProjectData>(projectData || {});
   const [isSaving, setIsSaving] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -45,7 +47,10 @@ export const EditableProjectDetails: React.FC<EditableProjectDetailsProps> = ({
   }, [projectData]);
 
   const readOnlyFields = ['projectId', 'projectName', 'accountName'];
-
+  
+  // Essential fields that are always visible
+  const essentialFields = ['projectId', 'accountName', 'projectPM'];
+  
   const fieldLabels: Record<string, string> = {
     projectId: 'Project ID',
     projectName: 'Project Name',
@@ -191,25 +196,75 @@ export const EditableProjectDetails: React.FC<EditableProjectDetailsProps> = ({
         </div>
       </CardHeader>
       <CardContent>
-        <div className={isEditing ? "grid gap-4" : "space-y-3"}>
-          {projectData && Object.keys(projectData).length > 0 ? (
-            Object.entries(projectData).map(([key, value]) => renderField(key, value))
-          ) : (
-            <div className="text-center py-6 text-muted-foreground">
-              <Settings className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No project details available</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditing(true)}
-                className="mt-3 gap-2"
-              >
-                <Edit className="h-4 w-4" />
-                Add Project Details
-              </Button>
-            </div>
-          )}
-        </div>
+        {projectData && Object.keys(projectData).length > 0 ? (
+          <div className="space-y-4">
+            {isEditing ? (
+              // Editing Mode - Show all fields
+              <div className="grid gap-4">
+                {Object.entries(projectData).map(([key, value]) => renderField(key, value))}
+              </div>
+            ) : (
+              // View Mode - Show essential fields + collapsible additional fields
+              <>
+                {/* Essential Fields - Always Visible */}
+                <div className="space-y-3">
+                  {essentialFields
+                    .filter(key => projectData[key] !== undefined && projectData[key] !== null && projectData[key] !== '')
+                    .map(key => renderField(key, projectData[key]))}
+                </div>
+
+                {/* Additional Fields - Collapsible */}
+                {Object.keys(projectData).some(key => !essentialFields.includes(key) && projectData[key] !== undefined && projectData[key] !== null && projectData[key] !== '') && (
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setIsExpanded(!isExpanded)}
+                      className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted/70 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Additional Details
+                        </span>
+                        <Badge variant="outline" className="text-xs">
+                          {Object.keys(projectData).filter(key => !essentialFields.includes(key) && projectData[key] !== undefined && projectData[key] !== null && projectData[key] !== '').length} fields
+                        </Badge>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {isExpanded ? 'Click to collapse' : 'Click to expand'}
+                      </span>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
+                        {Object.entries(projectData)
+                          .filter(([key, value]) => !essentialFields.includes(key) && value !== undefined && value !== null && value !== '')
+                          .map(([key, value]) => renderField(key, value))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-6 text-muted-foreground">
+            <Settings className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">No project details available</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditing(true)}
+              className="mt-3 gap-2"
+            >
+              <Edit className="h-4 w-4" />
+              Add Project Details
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
