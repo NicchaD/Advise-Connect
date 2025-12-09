@@ -37,7 +37,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import RequestFeedbackForm from '@/components/RequestFeedbackForm';
-import { RequestFeedbackSection } from '@/components/RequestFeedbackSection';
+import { FeedbackSection } from '@/components/FeedbackSection';
 import RequestTimeline from '@/components/RequestTimeline';
 import { TimesheetSection } from '@/components/TimesheetSection';
 import { RequestComments } from '@/components/RequestComments';
@@ -190,6 +190,7 @@ export default function MyRequests() {
   const [showActivitiesDetails, setShowActivitiesDetails] = useState<Record<string, boolean>>({});
   const [showCalculationLogic, setShowCalculationLogic] = useState<Record<string, boolean>>({});
   const [showBillabilityPercentage, setShowBillabilityPercentage] = useState<Record<string, boolean>>({});
+  const [showFeedback, setShowFeedback] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -921,24 +922,27 @@ export default function MyRequests() {
 
               {/* Feedback Section - Show when status is "Awaiting Feedback" or "Feedback Received" */}
               {(selectedRequest.status === 'Awaiting Feedback' || selectedRequest.status === 'Feedback Received') && currentUserId && (
-                <div>
-                  <RequestFeedbackSection
-                    requestId={selectedRequest.id}
-                    requestorId={selectedRequest.requestor_id || currentUserId}
-                    originalAssigneeId={selectedRequest.original_assignee_id || selectedRequest.assignee_id || null}
-                    currentUserId={currentUserId}
-                    currentUserRole={undefined}
-                    onFeedbackSubmitted={() => {
-                      toast({
-                        title: "Success",
-                        description: "Your feedback has been submitted successfully!",
-                        variant: "default"
-                      });
-                      setSelectedRequest(null);
-                      fetchUserRequests(); // Refresh the requests list
-                    }}
-                  />
-                </div>
+                <FeedbackSection
+                  request={selectedRequest as Request}
+                  assigneeInfo={assigneeInfo as AssigneeInfo}
+                  currentUserId={currentUserId}
+                  currentUserRole={undefined}
+                  isCollapsible={true}
+                  isExpanded={showFeedback[selectedRequest.id] || false}
+                  onToggle={() => setShowFeedback(prev => ({
+                    ...prev,
+                    [selectedRequest.id]: !prev[selectedRequest.id]
+                  }))}
+                  onFeedbackSubmitted={() => {
+                    toast({
+                      title: "Success",
+                      description: "Your feedback has been submitted successfully!",
+                      variant: "default"
+                    });
+                    setSelectedRequest(null);
+                    fetchUserRequests(); // Refresh the requests list
+                  }}
+                />
               )}
 
               {/* Collapsible Request Timeline */}

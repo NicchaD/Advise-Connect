@@ -105,6 +105,24 @@ export interface ActivitiesDetailsSectionProps {
 }
 
 /**
+ * Feedback Section Props
+ * 
+ * Props interface for the reusable FeedbackSection component.
+ */
+export interface FeedbackSectionProps {
+  request: Request;
+  assigneeInfo?: AssigneeInfo | null;
+  currentUserId: string;
+  currentUserRole?: string;
+  isCollapsible?: boolean;
+  isExpanded?: boolean;
+  onToggle?: () => void;
+  onFeedbackSubmitted?: () => void;
+  className?: string;
+  variant?: 'default' | 'compact';
+}
+
+/**
  * Section Visibility Configuration
  * 
  * Configuration object for determining which sections should be visible

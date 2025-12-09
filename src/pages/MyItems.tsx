@@ -9,7 +9,7 @@ import { StatusTransitionDropdown } from '@/components/StatusTransitionDropdown'
 import { RequestComments } from '@/components/RequestComments';
 import { ActivitiesSection } from '@/components/ActivitiesSection';
 import { MultiServiceActivitiesSection } from '@/components/MultiServiceActivitiesSection';
-import { RequestFeedbackSection } from '@/components/RequestFeedbackSection';
+import { FeedbackSection } from '@/components/FeedbackSection';
 import { TimesheetSection } from '@/components/TimesheetSection';
 import { RateEstimationSection } from '@/components/RateEstimationSection';
 import { BillabilityPercentageSection } from '@/components/BillabilityPercentageSection';
@@ -94,6 +94,7 @@ export default function MyItems() {
   const [showCalculationLogic, setShowCalculationLogic] = useState<Record<string, boolean>>({});
   const [showActivitiesDetails, setShowActivitiesDetails] = useState<Record<string, boolean>>({});
   const [showBillabilityPercentage, setShowBillabilityPercentage] = useState<Record<string, boolean>>({});
+  const [showFeedback, setShowFeedback] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   // Utility functions
@@ -1566,12 +1567,17 @@ export default function MyItems() {
 
               {/* Feedback Section */}
               {(selectedRequest.status === 'Awaiting Feedback' || selectedRequest.status === 'Feedback Received') && (
-                <RequestFeedbackSection
-                  requestId={selectedRequest.id}
-                  requestorId={selectedRequest.requestor_id}
-                  originalAssigneeId={selectedRequest.original_assignee_id}
+                <FeedbackSection
+                  request={selectedRequest as Request}
+                  assigneeInfo={assigneeInfo as AssigneeInfo}
                   currentUserId={user?.id || ''}
                   currentUserRole={userTitle || userRole}
+                  isCollapsible={true}
+                  isExpanded={showFeedback[selectedRequest.id] || false}
+                  onToggle={() => setShowFeedback(prev => ({
+                    ...prev,
+                    [selectedRequest.id]: !prev[selectedRequest.id]
+                  }))}
                   onFeedbackSubmitted={() => {
                     // Refresh data after feedback submission
                     if (user && userRole) {
