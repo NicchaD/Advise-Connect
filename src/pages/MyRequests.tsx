@@ -1,3 +1,14 @@
+/**
+ * MyRequests.tsx - Request Management Dashboard
+ * 
+ * Main dashboard for users to view and manage their submitted requests.
+ * Features: List view, detailed view, collapsible sections, real-time updates.
+ * 
+ * Section Order: Rate & Estimation → Activities Details → Billability → Feedback → Timeline → Comments
+ * 
+ * See /docs/MyRequests-Documentation.md for comprehensive documentation.
+ */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -31,7 +42,15 @@ import RequestTimeline from '@/components/RequestTimeline';
 import { TimesheetSection } from '@/components/TimesheetSection';
 import { RequestComments } from '@/components/RequestComments';
 
-// Activities Details Section Component
+/**
+ * ActivitiesDetailsSection - Displays completed vs pending work breakdown
+ * 
+ * Processes timesheet data to show visual progress indicators and statistics.
+ * Fetches human-readable activity names from database for better UX.
+ * 
+ * @param timesheetData Raw timesheet data with activity completion flags
+ * @param requestId Unique identifier for the request
+ */
 const ActivitiesDetailsSection: React.FC<{ timesheetData: any; requestId: string }> = ({ timesheetData, requestId }) => {
   const [subActivityNames, setSubActivityNames] = useState<Record<string, string>>({});
 
@@ -269,7 +288,7 @@ const ActivitiesDetailsSection: React.FC<{ timesheetData: any; requestId: string
   );
 };
 
-// Mapping for tool/offering IDs to display names
+// Mapping for tool/offering IDs to display names - for consistent UI display
 const TOOL_ID_TO_NAME_MAP: Record<string, string> = {
   // Engineering Excellence
   'github': 'GitHub',
