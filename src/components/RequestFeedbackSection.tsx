@@ -12,6 +12,7 @@ interface RequestFeedbackSectionProps {
   requestorId: string;
   originalAssigneeId: string | null;
   currentUserId: string;
+  currentUserRole?: string;
   onFeedbackSubmitted: () => void;
 }
 
@@ -67,7 +68,8 @@ export function RequestFeedbackSection({
   requestId, 
   requestorId, 
   originalAssigneeId,
-  currentUserId, 
+  currentUserId,
+  currentUserRole,
   onFeedbackSubmitted 
 }: RequestFeedbackSectionProps) {
   const [feedback, setFeedback] = useState<FeedbackData>({
@@ -87,8 +89,13 @@ export function RequestFeedbackSection({
   // Check if current user is the requestor (only they can edit)
   const isRequestor = currentUserId === requestorId;
   
-  // Check if current user should see this section (requestor or original assignee)
-  const canViewSection = currentUserId === requestorId || currentUserId === originalAssigneeId;
+  // Check if current user should see this section
+  // Requestor, original assignee, Advisory Service Head, and Admin can view
+  const canViewSection = 
+    currentUserId === requestorId || 
+    currentUserId === originalAssigneeId ||
+    currentUserRole === 'Admin' ||
+    currentUserRole === 'Advisory Service Head';
 
   useEffect(() => {
     const fetchExistingFeedback = async () => {
@@ -101,11 +108,21 @@ export function RequestFeedbackSection({
           return;
         }
 
+        // Determine whose feedback to fetch based on user role
+        let feedbackUserId;
+        if (isRequestor) {
+          // If current user is requestor, fetch their own feedback
+          feedbackUserId = user.id;
+        } else {
+          // If current user is assignee/advisory head, fetch the requestor's feedback
+          feedbackUserId = requestorId;
+        }
+
         const { data, error } = await supabase
           .from('request_feedback')
           .select('*')
           .eq('request_id', requestId)
-          .eq('user_id', user.id)
+          .eq('user_id', feedbackUserId)
           .maybeSingle();
 
         if (error && error.code !== 'PGRST116') {
@@ -123,7 +140,7 @@ export function RequestFeedbackSection({
     };
 
     fetchExistingFeedback();
-  }, [requestId, requestorId]);
+  }, [requestId, requestorId, isRequestor]);
 
   // Check if all mandatory fields are filled
   const isMandatoryComplete = 

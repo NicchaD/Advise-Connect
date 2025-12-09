@@ -1571,6 +1571,7 @@ export default function MyItems() {
                   requestorId={selectedRequest.requestor_id}
                   originalAssigneeId={selectedRequest.original_assignee_id}
                   currentUserId={user?.id || ''}
+                  currentUserRole={userTitle || userRole}
                   onFeedbackSubmitted={() => {
                     // Refresh data after feedback submission
                     if (user && userRole) {

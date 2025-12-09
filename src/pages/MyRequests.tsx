@@ -868,7 +868,7 @@ export default function MyRequests() {
 
               {/* Billability Percentage Section - Show when status is Review or after Review */}
               {(selectedRequest.status === 'Review' || 
-                ['Approved', 'Implementing', 'Implemented', 'Awaiting Feedback', 'Closed'].includes(selectedRequest.status) ||
+                ['Approved', 'Implementing', 'Implemented', 'Awaiting Feedback', 'Feedback Received', 'Closed'].includes(selectedRequest.status) ||
                 selectedRequest.billability_percentage !== null && selectedRequest.billability_percentage !== undefined) && (
                 <BillabilityPercentageSection
                   request={selectedRequest as Request}
@@ -889,7 +889,7 @@ export default function MyRequests() {
               )}
 
               {/* Activities Details Section - Show for Awaiting Feedback status and later */}
-              {['Awaiting Feedback', 'Closed'].includes(selectedRequest.status) && selectedRequest.timesheet_data && (
+              {['Awaiting Feedback', 'Feedback Received', 'Closed'].includes(selectedRequest.status) && selectedRequest.timesheet_data && (
                 <ActivitiesDetailsSection
                   timesheetData={selectedRequest.timesheet_data}
                   requestId={selectedRequest.id}
@@ -919,14 +919,15 @@ export default function MyRequests() {
                 </div>
               )}
 
-              {/* Feedback Section - Show when status is "Awaiting Feedback" */}
-              {selectedRequest.status === 'Awaiting Feedback' && currentUserId && (
+              {/* Feedback Section - Show when status is "Awaiting Feedback" or "Feedback Received" */}
+              {(selectedRequest.status === 'Awaiting Feedback' || selectedRequest.status === 'Feedback Received') && currentUserId && (
                 <div>
                   <RequestFeedbackSection
                     requestId={selectedRequest.id}
                     requestorId={selectedRequest.requestor_id || currentUserId}
                     originalAssigneeId={selectedRequest.original_assignee_id || selectedRequest.assignee_id || null}
                     currentUserId={currentUserId}
+                    currentUserRole={undefined}
                     onFeedbackSubmitted={() => {
                       toast({
                         title: "Success",
