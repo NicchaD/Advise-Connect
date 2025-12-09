@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Search,
   FileText,
@@ -741,25 +742,17 @@ export default function MyRequests() {
         </CardContent>
       </Card>
 
-      {/* Request Detail Modal */}
-      {selectedRequest && (
-        <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedRequest(null)}
-        >
-          <Card 
-            className="w-full max-w-4xl max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Request Details - {selectedRequest.request_id}</CardTitle>
-                <Button variant="outline" onClick={() => setSelectedRequest(null)}>
-                  Close
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
+      {/* Dialog for request details */}
+      <Dialog open={!!selectedRequest} onOpenChange={() => setSelectedRequest(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Request Details - {selectedRequest?.request_id}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedRequest && (
+            <div className="space-y-6">
               {/* Request Details Section - Reusable Component */}
               <RequestDetailsSection
                 request={selectedRequest as Request}
@@ -920,10 +913,10 @@ export default function MyRequests() {
                   />
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
