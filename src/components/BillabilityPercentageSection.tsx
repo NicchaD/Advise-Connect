@@ -103,30 +103,26 @@ export const BillabilityPercentageSection: React.FC<BillabilityPercentageSection
   const HeaderContent = () => (
     <button
       onClick={onToggle}
-      className="w-full flex items-center justify-between text-left hover:bg-green-100 rounded-lg p-2 transition-colors"
+      className="w-full flex items-center gap-3 text-left hover:bg-green-100 rounded-lg p-2 transition-colors"
     >
-      <div className="flex items-center gap-3">
-        <Calculator className="h-5 w-5 text-green-600" />
-        <h3 className="text-lg font-semibold text-green-700">Billability Percentage</h3>
-        <Badge variant="outline" className="text-xs bg-green-100 text-green-600 border-green-300">
-          {isExpanded ? 'Expanded' : 'Collapsed'}
-        </Badge>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-green-500">
-          {isExpanded ? 'Click to collapse' : 'Click to expand billability details'}
-        </span>
-        <svg 
-          className={`h-5 w-5 text-green-500 transition-transform duration-200 ${
-            isExpanded ? 'rotate-180' : ''
-          }`} 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
+      <svg 
+        className={`h-5 w-5 text-green-500 transition-transform duration-200 ${
+          isExpanded ? 'rotate-90' : ''
+        }`} 
+        fill="none" 
+        stroke="currentColor" 
+        viewBox="0 0 24 24"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+      </svg>
+      <Calculator className="h-5 w-5 text-green-600" />
+      <h3 className="text-lg font-semibold text-green-700">Billability Percentage</h3>
+      <Badge variant="outline" className="text-xs bg-green-100 text-green-600 border-green-300">
+        {isExpanded ? 'Expanded' : 'Collapsed'}
+      </Badge>
+      <span className="text-sm text-green-500 ml-auto">
+        {isExpanded ? 'Click to collapse' : 'Click to expand billability details'}
+      </span>
     </button>
   );
 

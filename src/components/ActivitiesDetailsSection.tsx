@@ -241,32 +241,28 @@ export const ActivitiesDetailsSection: React.FC<ActivitiesDetailsSectionProps> =
   const HeaderContent = () => (
     <button
       onClick={onToggle}
-      className="w-full flex items-center justify-between text-left hover:bg-purple-100 rounded-lg p-2 transition-colors"
+      className="w-full flex items-center gap-3 text-left hover:bg-purple-100 rounded-lg p-2 transition-colors"
     >
-      <div className="flex items-center gap-3">
-        <svg className="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <h3 className="text-lg font-semibold text-purple-700">Activities Details</h3>
-        <Badge variant="outline" className="text-xs bg-purple-100 text-purple-600 border-purple-300">
-          {isExpanded ? 'Expanded' : 'Collapsed'}
-        </Badge>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-purple-500">
-          {isExpanded ? 'Click to collapse' : 'Click to expand activities'}
-        </span>
-        <svg 
-          className={`h-5 w-5 text-purple-500 transition-transform duration-200 ${
-            isExpanded ? 'rotate-180' : ''
-          }`} 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
+      <svg 
+        className={`h-5 w-5 text-purple-500 transition-transform duration-200 ${
+          isExpanded ? 'rotate-90' : ''
+        }`} 
+        fill="none" 
+        stroke="currentColor" 
+        viewBox="0 0 24 24"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+      </svg>
+      <svg className="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <h3 className="text-lg font-semibold text-purple-700">Activities Details</h3>
+      <Badge variant="outline" className="text-xs bg-purple-100 text-purple-600 border-purple-300">
+        {isExpanded ? 'Expanded' : 'Collapsed'}
+      </Badge>
+      <span className="text-sm text-purple-500 ml-auto">
+        {isExpanded ? 'Click to collapse' : 'Click to expand activities'}
+      </span>
     </button>
   );
 
