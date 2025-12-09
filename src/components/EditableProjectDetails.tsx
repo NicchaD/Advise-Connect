@@ -196,75 +196,82 @@ export const EditableProjectDetails: React.FC<EditableProjectDetailsProps> = ({
         </div>
       </CardHeader>
       <CardContent>
-        {projectData && Object.keys(projectData).length > 0 ? (
-          <div className="space-y-4">
-            {isEditing ? (
-              // Editing Mode - Show all fields
-              <div className="grid gap-4">
-                {Object.entries(projectData).map(([key, value]) => renderField(key, value))}
+        <div className="space-y-4">
+          {isEditing ? (
+            // Editing Mode - Show all fields (including empty ones)
+            <div className="grid gap-4">
+              {Object.keys(fieldLabels).map(key => renderField(key, (projectData && projectData[key]) || ''))}
+              {/* Also include any fields from projectData that aren't in fieldLabels */}
+              {projectData && Object.keys(projectData)
+                .filter(key => !fieldLabels[key])
+                .map(key => renderField(key, projectData[key]))}
+            </div>
+          ) : (
+            // View Mode - Show essential fields + collapsible additional fields
+            <>
+              {/* Essential Fields - Always Visible */}
+              <div className="space-y-3">
+                {essentialFields.map(key => renderField(key, (projectData && projectData[key]) || ''))}
               </div>
-            ) : (
-              // View Mode - Show essential fields + collapsible additional fields
-              <>
-                {/* Essential Fields - Always Visible */}
-                <div className="space-y-3">
-                  {essentialFields
-                    .filter(key => projectData[key] !== undefined && projectData[key] !== null && projectData[key] !== '')
-                    .map(key => renderField(key, projectData[key]))}
-                </div>
 
-                {/* Additional Fields - Collapsible */}
-                {Object.keys(projectData).some(key => !essentialFields.includes(key) && projectData[key] !== undefined && projectData[key] !== null && projectData[key] !== '') && (
-                  <div className="space-y-3">
-                    <button
-                      onClick={() => setIsExpanded(!isExpanded)}
-                      className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted/70 rounded-lg transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        )}
-                        <span className="text-sm font-medium text-muted-foreground">
-                          Additional Details
+              {/* Additional Fields - Collapsible (including empty fields) */}
+              {(() => {
+                // Get all possible additional fields from fieldLabels, excluding essential fields
+                const additionalFieldKeys = Object.keys(fieldLabels).filter(key => !essentialFields.includes(key));
+                
+                // Also include any fields from projectData that aren't in fieldLabels
+                const projectDataKeys = projectData ? Object.keys(projectData).filter(key => !essentialFields.includes(key) && !additionalFieldKeys.includes(key)) : [];
+                
+                const allAdditionalFields = [...additionalFieldKeys, ...projectDataKeys];
+                
+                if (allAdditionalFields.length > 0) {
+                  const filledFields = allAdditionalFields.filter(key => projectData && projectData[key] && projectData[key] !== '').length;
+                  const emptyFields = allAdditionalFields.length - filledFields;
+                  
+                  return (
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted/70 rounded-lg transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span className="text-sm font-medium text-muted-foreground">
+                            Additional Details
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <Badge variant="outline" className="text-xs">
+                              {allAdditionalFields.length} fields
+                            </Badge>
+                            {emptyFields > 0 && (
+                              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-600 border-amber-200">
+                                {emptyFields} missing
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {isExpanded ? 'Click to collapse' : 'Click to expand'}
                         </span>
-                        <Badge variant="outline" className="text-xs">
-                          {Object.keys(projectData).filter(key => !essentialFields.includes(key) && projectData[key] !== undefined && projectData[key] !== null && projectData[key] !== '').length} fields
-                        </Badge>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {isExpanded ? 'Click to collapse' : 'Click to expand'}
-                      </span>
-                    </button>
+                      </button>
 
-                    {isExpanded && (
-                      <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
-                        {Object.entries(projectData)
-                          .filter(([key, value]) => !essentialFields.includes(key) && value !== undefined && value !== null && value !== '')
-                          .map(([key, value]) => renderField(key, value))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="text-center py-6 text-muted-foreground">
-            <Settings className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No project details available</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEditing(true)}
-              className="mt-3 gap-2"
-            >
-              <Edit className="h-4 w-4" />
-              Add Project Details
-            </Button>
-          </div>
-        )}
+                      {isExpanded && (
+                        <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
+                          {allAdditionalFields.map(key => renderField(key, (projectData && projectData[key]) || ''))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
