@@ -35,6 +35,7 @@ import {
   User as UserIcon
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { getRequestorDisplayName } from '@/lib/userUtils';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import RequestFeedbackForm from '@/components/RequestFeedbackForm';
@@ -112,34 +113,6 @@ const ADVISORY_SERVICE_ID_TO_NAME_MAP: Record<string, string> = {
   'process-consulting': 'Process Consulting',
   'knowledge-management': 'Knowledge Management'
 };
-
-interface Request {
-  id: string;
-  request_id: string;
-  status: string;
-  description: string;
-  submission_date: string;
-  project_data: any;
-  service_specific_data: any;
-  advisory_services: string[];
-  selected_tools: string[];
-  current_assignee_name?: string;
-  original_assignee_name?: string;
-  selected_activities?: any;
-  service_offering_activities?: any;
-  saved_total_hours?: number;
-  saved_total_pd_estimate?: number;
-  saved_total_cost?: number;
-  saved_assignee_rate?: number;
-  saved_assignee_role?: string;
-  estimation_saved_at?: string;
-  assignee_profile?: any;
-  timesheet_data?: any;
-  billability_percentage?: number;
-  requestor_id?: string;
-  assignee_id?: string;
-  original_assignee_id?: string;
-}
 
 const STATUS_COLORS = {
   'New': 'bg-blue-100 text-blue-800',
@@ -264,6 +237,16 @@ export default function MyRequests() {
       // Set current user ID for comments
       setCurrentUserId(user.id);
 
+      // Fetch user profile separately since all requests belong to the same user
+      const { data: userProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username, email')
+        .eq('user_id', user.id)
+        .single();
+
+      console.log('MyRequests: Fetched user profile:', userProfile);
+      console.log('MyRequests: Profile error:', profileError);
+
       const { data, error } = await supabase
         .from('requests')
         .select('*')
@@ -271,7 +254,16 @@ export default function MyRequests() {
         .order('submission_date', { ascending: false });
 
       if (error) throw error;
-      setRequests(data || []);
+      
+      // Attach the user profile to each request
+      const requestsWithProfile = (data || []).map(request => ({
+        ...request,
+        requestor_profile: userProfile
+      }));
+      
+      console.log('MyRequests: Requests with profile:', requestsWithProfile[0]);
+      
+      setRequests(requestsWithProfile);
     } catch (error) {
       console.error('Error fetching requests:', error);
       toast({
@@ -754,13 +746,24 @@ export default function MyRequests() {
           {selectedRequest && (
             <div className="space-y-6">
               {/* Request Details Section - Reusable Component */}
-              <RequestDetailsSection
-                request={selectedRequest as Request}
-                advisoryServiceMap={advisoryServices}
-                serviceOfferingMap={serviceOfferings}
-                toolsMap={TOOL_ID_TO_NAME_MAP}
-                formatDate={(date) => format(new Date(date), 'PPP')}
-              />
+              {(() => {
+                const displayName = getRequestorDisplayName(selectedRequest.requestor_profile, selectedRequest.requestor_id);
+                console.log('MyRequests: RequestDetailsSection props:', {
+                  requestor_profile: selectedRequest.requestor_profile,
+                  requestor_id: selectedRequest.requestor_id,
+                  displayName
+                });
+                return (
+                  <RequestDetailsSection
+                    request={selectedRequest as Request}
+                    requestorDisplayName={displayName}
+                    advisoryServiceMap={advisoryServices}
+                    serviceOfferingMap={serviceOfferings}
+                    toolsMap={TOOL_ID_TO_NAME_MAP}
+                    formatDate={(date) => format(new Date(date), 'PPP')}
+                  />
+                );
+              })()}
 
               {/* Rate and Estimation Section - Show when any estimation data exists */}
               {(selectedRequest.status === 'Estimation' || 
