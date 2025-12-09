@@ -1061,146 +1061,6 @@ export default function MyRequests() {
                 </div>
               )}
 
-              {/* Collapsible Billability Percentage Section - Show when status is Review or after Review */}
-              {(selectedRequest.status === 'Review' || 
-                ['Approved', 'Implementing', 'Implemented', 'Awaiting Feedback', 'Closed'].includes(selectedRequest.status) ||
-                selectedRequest.billability_percentage !== null && selectedRequest.billability_percentage !== undefined) && (
-                <div className="space-y-4">
-                  <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-lg p-4 shadow-lg">
-                    <button
-                      onClick={() => {
-                        const currentState = showBillabilityPercentage[selectedRequest.id] || false;
-                        setShowBillabilityPercentage(prev => ({
-                          ...prev,
-                          [selectedRequest.id]: !currentState
-                        }));
-                      }}
-                      className="w-full flex items-center justify-between text-left hover:bg-green-100 rounded-lg p-2 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Calculator className="h-5 w-5 text-green-600" />
-                        <h3 className="text-lg font-semibold text-green-700">Billability Percentage</h3>
-                        <Badge variant="outline" className="text-xs bg-green-100 text-green-600 border-green-300">
-                          {showBillabilityPercentage[selectedRequest.id] ? 'Expanded' : 'Collapsed'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-green-500">
-                          {showBillabilityPercentage[selectedRequest.id] ? 'Click to collapse' : 'Click to expand billability details'}
-                        </span>
-                        <svg 
-                          className={`h-5 w-5 text-green-500 transition-transform duration-200 ${
-                            showBillabilityPercentage[selectedRequest.id] ? 'rotate-180' : ''
-                          }`} 
-                          fill="none" 
-                          stroke="currentColor" 
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
-                    </button>
-                    
-                    {showBillabilityPercentage[selectedRequest.id] && (
-                      <div className="mt-4 pt-4 border-t border-green-200 animate-in slide-in-from-top-2 duration-300">
-                     
-                     {(() => {
-                       // Read-only display for requestors (they can't edit billability percentage)
-                       return (
-                       <div className="space-y-2">
-                         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                           <DollarSign className="h-4 w-4" />
-                           Billability Percentage
-                         </div>
-                         <div className="text-3xl font-bold text-green-700 bg-white p-4 rounded-lg border-2 border-green-200">
-                           {selectedRequest.billability_percentage !== null && selectedRequest.billability_percentage !== undefined 
-                             ? `${selectedRequest.billability_percentage}%` 
-                             : 'Not set'}
-                         </div>
-                         {(selectedRequest.billability_percentage === null || selectedRequest.billability_percentage === undefined) && (
-                           <div className="text-sm text-orange-600 font-medium">
-                             Waiting for assignee to set billability percentage during Review status
-                           </div>
-                         )}
-                       </div>
-                     );
-                   })()}
-                   
-                   {/* Auto-calculated Billable Assignment Days */}
-                   {(selectedRequest.billability_percentage !== null && selectedRequest.billability_percentage !== undefined && selectedRequest.billability_percentage > 0) && (
-                     <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-lg p-6 shadow-lg">
-                       <div className="space-y-4">
-                         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                           <Clock className="h-4 w-4" />
-                           Number of days of billable assignment with the above allocation
-                         </div>
-                         <div className="text-3xl font-bold text-blue-700 bg-white p-4 rounded-lg border-2 border-blue-200">
-                           {(() => {
-                             // Calculate billable assignment days
-                             const totalHours = calculatedHours || 0;
-                             const billabilityPercentage = selectedRequest.billability_percentage || 0;
-                             
-                             if (totalHours > 0 && billabilityPercentage > 0) {
-                               // Assuming 8 hours per working day
-                               const hoursPerDay = 8;
-                               // Calculate effective hours per day based on billability percentage
-                               const effectiveHoursPerDay = (hoursPerDay * billabilityPercentage) / 100;
-                               // Calculate number of days needed
-                               const daysNeeded = Math.ceil(totalHours / effectiveHoursPerDay);
-                               
-                               console.log('MyRequests - Billable Days Calculation:', {
-                                 totalHours,
-                                 billabilityPercentage,
-                                 hoursPerDay,
-                                 effectiveHoursPerDay,
-                                 daysNeeded
-                               });
-                               
-                               return `${daysNeeded} ${daysNeeded === 1 ? 'day' : 'days'}`;
-                             }
-                             
-                             return 'Not calculated';
-                           })()}
-                         </div>
-                         <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-lg border border-blue-200">
-                           <div className="flex items-start gap-2">
-                             <div className="text-blue-600 mt-0.5">ℹ️</div>
-                             <div className="w-full">
-                               <button 
-                                 onClick={() => {
-                                   const currentState = showCalculationLogic[selectedRequest.id] || false;
-                                   setShowCalculationLogic(prev => ({
-                                     ...prev,
-                                     [selectedRequest.id]: !currentState
-                                   }));
-                                 }}
-                                 className="font-medium text-blue-800 hover:text-blue-900 cursor-pointer flex items-center gap-1 transition-colors"
-                               >
-                                 <span>Calculation Logic</span>
-                                 <span className="text-xs">
-                                   {showCalculationLogic[selectedRequest.id] ? '▼' : '▶'}
-                                 </span>
-                               </button>
-                               {showCalculationLogic[selectedRequest.id] && (
-                                 <div className="space-y-1 text-xs mt-2 animate-in slide-in-from-top-1 duration-200">
-                                   <div>• Total hours needed: <span className="font-mono">{calculatedHours || 0} hours</span></div>
-                                   <div>• Billability allocation: <span className="font-mono">{selectedRequest.billability_percentage || 0}%</span></div>
-                                   <div>• Effective hours per day: <span className="font-mono">{selectedRequest.billability_percentage ? Math.round((8 * selectedRequest.billability_percentage / 100) * 10) / 10 : 0} hours/day</span></div>
-                                   <div>• Working days needed: <span className="font-mono">⌈{calculatedHours || 0} ÷ {selectedRequest.billability_percentage ? Math.round((8 * selectedRequest.billability_percentage / 100) * 10) / 10 : 0}⌉</span></div>
-                                 </div>
-                               )}
-                             </div>
-                           </div>
-                         </div>
-                       </div>
-                     </div>
-                   )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* Collapsible Activities Details Section - Show for Awaiting Feedback status and later */}
               {['Awaiting Feedback', 'Closed'].includes(selectedRequest.status) && selectedRequest.timesheet_data && (
                 <div className="space-y-4">
@@ -1399,6 +1259,147 @@ export default function MyRequests() {
                   </div>
                 </div>
               )}
+
+              {/* Collapsible Billability Percentage Section - Show when status is Review or after Review */}
+              {(selectedRequest.status === 'Review' || 
+                ['Approved', 'Implementing', 'Implemented', 'Awaiting Feedback', 'Closed'].includes(selectedRequest.status) ||
+                selectedRequest.billability_percentage !== null && selectedRequest.billability_percentage !== undefined) && (
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-lg p-4 shadow-lg">
+                    <button
+                      onClick={() => {
+                        const currentState = showBillabilityPercentage[selectedRequest.id] || false;
+                        setShowBillabilityPercentage(prev => ({
+                          ...prev,
+                          [selectedRequest.id]: !currentState
+                        }));
+                      }}
+                      className="w-full flex items-center justify-between text-left hover:bg-green-100 rounded-lg p-2 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Calculator className="h-5 w-5 text-green-600" />
+                        <h3 className="text-lg font-semibold text-green-700">Billability Percentage</h3>
+                        <Badge variant="outline" className="text-xs bg-green-100 text-green-600 border-green-300">
+                          {showBillabilityPercentage[selectedRequest.id] ? 'Expanded' : 'Collapsed'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-green-500">
+                          {showBillabilityPercentage[selectedRequest.id] ? 'Click to collapse' : 'Click to expand billability details'}
+                        </span>
+                        <svg 
+                          className={`h-5 w-5 text-green-500 transition-transform duration-200 ${
+                            showBillabilityPercentage[selectedRequest.id] ? 'rotate-180' : ''
+                          }`} 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </button>
+                    
+                    {showBillabilityPercentage[selectedRequest.id] && (
+                      <div className="mt-4 pt-4 border-t border-green-200 animate-in slide-in-from-top-2 duration-300">
+                     
+                     {(() => {
+                       // Read-only display for requestors (they can't edit billability percentage)
+                       return (
+                       <div className="space-y-2">
+                         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                           <DollarSign className="h-4 w-4" />
+                           Billability Percentage
+                         </div>
+                         <div className="text-3xl font-bold text-green-700 bg-white p-4 rounded-lg border-2 border-green-200">
+                           {selectedRequest.billability_percentage !== null && selectedRequest.billability_percentage !== undefined 
+                             ? `${selectedRequest.billability_percentage}%` 
+                             : 'Not set'}
+                         </div>
+                         {(selectedRequest.billability_percentage === null || selectedRequest.billability_percentage === undefined) && (
+                           <div className="text-sm text-orange-600 font-medium">
+                             Waiting for assignee to set billability percentage during Review status
+                           </div>
+                         )}
+                       </div>
+                     );
+                   })()}
+                   
+                   {/* Auto-calculated Billable Assignment Days */}
+                   {(selectedRequest.billability_percentage !== null && selectedRequest.billability_percentage !== undefined && selectedRequest.billability_percentage > 0) && (
+                     <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-lg p-6 shadow-lg">
+                       <div className="space-y-4">
+                         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                           <Clock className="h-4 w-4" />
+                           Number of days of billable assignment with the above allocation
+                         </div>
+                         <div className="text-3xl font-bold text-blue-700 bg-white p-4 rounded-lg border-2 border-blue-200">
+                           {(() => {
+                             // Calculate billable assignment days
+                             const totalHours = calculatedHours || 0;
+                             const billabilityPercentage = selectedRequest.billability_percentage || 0;
+                             
+                             if (totalHours > 0 && billabilityPercentage > 0) {
+                               // Assuming 8 hours per working day
+                               const hoursPerDay = 8;
+                               // Calculate effective hours per day based on billability percentage
+                               const effectiveHoursPerDay = (hoursPerDay * billabilityPercentage) / 100;
+                               // Calculate number of days needed
+                               const daysNeeded = Math.ceil(totalHours / effectiveHoursPerDay);
+                               
+                               console.log('MyRequests - Billable Days Calculation:', {
+                                 totalHours,
+                                 billabilityPercentage,
+                                 hoursPerDay,
+                                 effectiveHoursPerDay,
+                                 daysNeeded
+                               });
+                               
+                               return `${daysNeeded} ${daysNeeded === 1 ? 'day' : 'days'}`;
+                             }
+                             
+                             return 'Not calculated';
+                           })()}
+                         </div>
+                         <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-lg border border-blue-200">
+                           <div className="flex items-start gap-2">
+                             <div className="text-blue-600 mt-0.5">ℹ️</div>
+                             <div className="w-full">
+                               <button 
+                                 onClick={() => {
+                                   const currentState = showCalculationLogic[selectedRequest.id] || false;
+                                   setShowCalculationLogic(prev => ({
+                                     ...prev,
+                                     [selectedRequest.id]: !currentState
+                                   }));
+                                 }}
+                                 className="font-medium text-blue-800 hover:text-blue-900 cursor-pointer flex items-center gap-1 transition-colors"
+                               >
+                                 <span>Calculation Logic</span>
+                                 <span className="text-xs">
+                                   {showCalculationLogic[selectedRequest.id] ? '▼' : '▶'}
+                                 </span>
+                               </button>
+                               {showCalculationLogic[selectedRequest.id] && (
+                                 <div className="space-y-1 text-xs mt-2 animate-in slide-in-from-top-1 duration-200">
+                                   <div>• Total hours needed: <span className="font-mono">{calculatedHours || 0} hours</span></div>
+                                   <div>• Billability allocation: <span className="font-mono">{selectedRequest.billability_percentage || 0}%</span></div>
+                                   <div>• Effective hours per day: <span className="font-mono">{selectedRequest.billability_percentage ? Math.round((8 * selectedRequest.billability_percentage / 100) * 10) / 10 : 0} hours/day</span></div>
+                                   <div>• Working days needed: <span className="font-mono">⌈{calculatedHours || 0} ÷ {selectedRequest.billability_percentage ? Math.round((8 * selectedRequest.billability_percentage / 100) * 10) / 10 : 0}⌉</span></div>
+                                 </div>
+                               )}
+                             </div>
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
 
               {/* Collapsible Activities Details Section - Show for Awaiting Feedback status and later */}
               {['Awaiting Feedback', 'Closed'].includes(selectedRequest.status) && selectedRequest.timesheet_data && (
