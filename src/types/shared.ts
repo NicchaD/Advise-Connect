@@ -19,12 +19,14 @@ export interface Request {
   status: string;
   description: string;
   submission_date: string;
+  updated_at: string;
   project_data: any;
   service_specific_data: any;
   advisory_services: string[];
   selected_tools: string[];
   current_assignee_name?: string;
   original_assignee_name?: string;
+  assigned_consultant_name?: string;
   selected_activities?: any;
   service_offering_activities?: any;
   saved_total_hours?: number;
@@ -34,6 +36,7 @@ export interface Request {
   saved_assignee_role?: string;
   estimation_saved_at?: string;
   assignee_profile?: any;
+  requestor_profile?: any;
   timesheet_data?: any;
   billability_percentage?: number;
   requestor_id?: string;
@@ -118,6 +121,23 @@ export interface FeedbackSectionProps {
   isExpanded?: boolean;
   onToggle?: () => void;
   onFeedbackSubmitted?: () => void;
+  className?: string;
+  variant?: 'default' | 'compact';
+}
+
+/**
+ * Request Details Section Props
+ * 
+ * Props interface for the reusable RequestDetailsSection component.
+ */
+export interface RequestDetailsSectionProps {
+  request: Request;
+  requestorDisplayName?: string;
+  advisoryServiceMap?: Record<string, string>;
+  serviceOfferingMap?: Record<string, string>;
+  toolsMap?: Record<string, string>;
+  onProjectDataUpdate?: (updatedData: any) => void;
+  formatDate?: (dateString: string) => string;
   className?: string;
   variant?: 'default' | 'compact';
 }
