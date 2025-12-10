@@ -38,7 +38,7 @@ import {
   Settings
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { getRequestorDisplayName } from '@/lib/userUtils';
+import { getRequestorDisplayName, fetchUnifiedUserProfiles, createUnifiedProfileLookupMap } from '@/lib/userUtils';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import RequestFeedbackForm from '@/components/RequestFeedbackForm';
@@ -261,42 +261,32 @@ export default function MyRequests() {
 
       if (error) throw error;
       
-      // Get unique assignee IDs from requests
+      // Get unique user IDs from requests (both requestors and assignees)
+      const requestorIds = [...new Set((data || [])
+        .map(request => request.requestor_id)
+        .filter(id => id))] as string[];
       const assigneeIds = [...new Set((data || [])
         .map(request => request.assignee_id)
         .filter(id => id))] as string[];
-
-      // Fetch assignee profiles from advisory_team_members table
-      let assigneeProfiles: any[] = [];
-      if (assigneeIds.length > 0) {
-        const { data: profiles, error: profilesError } = await supabase
-          .from('advisory_team_members')
-          .select('*')
-          .in('user_id', assigneeIds)
-          .eq('is_active', true);
-        
-        if (profilesError) {
-          console.error('Error fetching assignee profiles:', profilesError);
-        } else {
-          assigneeProfiles = profiles || [];
-          console.log('MyRequests: Successfully fetched assignee profiles from advisory_team_members:', assigneeProfiles.length);
-          if (assigneeProfiles.length > 0) {
-            console.log('MyRequests: Available advisory_team_members columns:', Object.keys(assigneeProfiles[0]));
-            console.log('MyRequests: Sample advisory_team_members data:', assigneeProfiles[0]);
-          }
+      
+      // Combine all user IDs and fetch unified profiles
+      const allUserIds = [...new Set([...requestorIds, ...assigneeIds])];
+      const unifiedProfiles = await fetchUnifiedUserProfiles(allUserIds);
+      const profileMap = createUnifiedProfileLookupMap(unifiedProfiles);
+      
+      console.log('MyRequests: Fetched unified profiles:', unifiedProfiles.length);
+      if (unifiedProfiles.length > 0) {
+        const advisoryMembers = unifiedProfiles.filter(p => p.is_advisory_member);
+        console.log('MyRequests: Advisory members found:', advisoryMembers.length);
+        if (advisoryMembers.length > 0) {
+          console.log('MyRequests: Sample advisory member:', advisoryMembers[0]);
         }
       }
 
-      // Create a map of user_id to profile for quick lookup
-      const profileMap = assigneeProfiles.reduce((acc, profile) => {
-        acc[profile.user_id] = profile;
-        return acc;
-      }, {} as Record<string, any>);
-
-      // Attach both requestor and assignee profiles to each request
+      // Attach profiles to each request
       const requestsWithProfile = (data || []).map(request => ({
         ...request,
-        requestor_profile: userProfile,
+        requestor_profile: profileMap[request.requestor_id] || userProfile, // fallback to current user profile
         assignee_profile: profileMap[request.assignee_id] || null
       }));
       

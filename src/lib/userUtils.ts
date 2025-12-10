@@ -15,6 +15,22 @@ export interface AssigneeProfile {
   email?: string;
 }
 
+export interface UnifiedUserProfile {
+  user_id: string;
+  username: string;
+  email: string;
+  role: string;
+  profile_title: string;
+  // Advisory team fields (nullable for non-advisory members)
+  advisory_name?: string;
+  advisory_title?: string;
+  designation?: string;
+  rate_per_hour?: number;
+  advisory_services?: string[];
+  expertise?: string[];
+  is_advisory_member: boolean;
+}
+
 export const fetchUserProfiles = async (userIds: string[]): Promise<UserProfile[]> => {
   if (userIds.length === 0) return [];
 
@@ -130,9 +146,82 @@ export const createProfileLookupMap = (profiles: UserProfile[]): Record<string, 
   }, {} as Record<string, UserProfile>);
 };
 
+export const fetchUnifiedUserProfiles = async (userIds: string[]): Promise<UnifiedUserProfile[]> => {
+  if (userIds.length === 0) return [];
+
+  try {
+    console.log('Fetching unified profiles for users:', userIds.length);
+    
+    // Fetch profiles and advisory members separately, then join in memory
+    // This approach is more reliable than Supabase foreign key joins
+    const [profilesResult, advisoryResult] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('user_id, username, email, role, title')
+        .in('user_id', userIds),
+      supabase
+        .from('advisory_team_members')
+        .select('user_id, name, title, designation, rate_per_hour, advisory_services, expertise')
+        .in('user_id', userIds)
+        .eq('is_active', true)
+    ]);
+
+    if (profilesResult.error) {
+      console.error('Error fetching basic profiles:', profilesResult.error);
+      return [];
+    }
+
+    if (advisoryResult.error) {
+      console.error('Error fetching advisory members:', advisoryResult.error);
+      // Continue without advisory data
+    }
+
+    const basicProfiles = profilesResult.data || [];
+    const advisoryMembers = advisoryResult.data || [];
+
+    console.log(`Fetched ${basicProfiles.length} profiles and ${advisoryMembers.length} advisory members`);
+
+    // Create lookup map for advisory members
+    const advisoryMap = advisoryMembers.reduce((acc, member) => {
+      acc[member.user_id] = member;
+      return acc;
+    }, {} as Record<string, any>);
+
+    // Combine the data
+    return basicProfiles.map(profile => {
+      const advisoryInfo = advisoryMap[profile.user_id];
+      return {
+        user_id: profile.user_id,
+        username: profile.username,
+        email: profile.email,
+        role: profile.role,
+        profile_title: profile.title,
+        advisory_name: advisoryInfo?.name,
+        advisory_title: advisoryInfo?.title,
+        designation: advisoryInfo?.designation,
+        rate_per_hour: advisoryInfo?.rate_per_hour,
+        advisory_services: advisoryInfo?.advisory_services,
+        expertise: advisoryInfo?.expertise,
+        is_advisory_member: !!advisoryInfo
+      };
+    });
+
+  } catch (error) {
+    console.error('Error in fetchUnifiedUserProfiles:', error);
+    return [];
+  }
+};
+
 export const createAssigneeProfileLookupMap = (profiles: AssigneeProfile[]): Record<string, AssigneeProfile> => {
   return profiles.reduce((acc, profile) => {
     acc[profile.user_id] = profile;
     return acc;
   }, {} as Record<string, AssigneeProfile>);
+};
+
+export const createUnifiedProfileLookupMap = (profiles: UnifiedUserProfile[]): Record<string, UnifiedUserProfile> => {
+  return profiles.reduce((acc, profile) => {
+    acc[profile.user_id] = profile;
+    return acc;
+  }, {} as Record<string, UnifiedUserProfile>);
 };

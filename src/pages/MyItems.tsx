@@ -15,7 +15,7 @@ import { RateEstimationSection } from '@/components/RateEstimationSection';
 import { BillabilityPercentageSection } from '@/components/BillabilityPercentageSection';
 import { ActivitiesDetailsSection } from '@/components/ActivitiesDetailsSection';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchUserProfiles, getUserDisplayName, getRequestorDisplayName, createProfileLookupMap, fetchAssigneeProfiles, createAssigneeProfileLookupMap } from '@/lib/userUtils';
+import { fetchUserProfiles, getUserDisplayName, getRequestorDisplayName, createProfileLookupMap, fetchAssigneeProfiles, createAssigneeProfileLookupMap, fetchUnifiedUserProfiles, createUnifiedProfileLookupMap } from '@/lib/userUtils';
 import { useToast } from '@/hooks/use-toast';
 import { 
   AlertCircle, 
@@ -844,23 +844,24 @@ export default function MyItems() {
       const requestorIds = requests.map(r => r.requestor_id).filter(id => id);
       const assigneeIds = requests.map(r => r.assignee_id).filter(id => id);
       
-      // Fetch requestor profiles from profiles table
-      const requestorProfiles = await fetchUserProfiles(requestorIds);
-      const requestorProfileMap = createProfileLookupMap(requestorProfiles);
+      // Combine all user IDs and fetch unified profiles
+      const allUserIds = [...new Set([...requestorIds, ...assigneeIds])];
+      const unifiedProfiles = await fetchUnifiedUserProfiles(allUserIds);
+      const profileMap = createUnifiedProfileLookupMap(unifiedProfiles);
       
-      // Fetch assignee profiles from advisory_team_members table
-      const assigneeProfiles = await fetchAssigneeProfiles(assigneeIds);
-      const assigneeProfileMap = createAssigneeProfileLookupMap(assigneeProfiles);
-      
-      console.log('MyItems: Fetched assignee profiles from advisory_team_members:', assigneeProfiles.length);
-      if (assigneeProfiles.length > 0) {
-        console.log('MyItems: Sample assignee profile:', assigneeProfiles[0]);
+      console.log('MyItems: Fetched unified profiles:', unifiedProfiles.length);
+      if (unifiedProfiles.length > 0) {
+        const advisoryMembers = unifiedProfiles.filter(p => p.is_advisory_member);
+        console.log('MyItems: Advisory members found:', advisoryMembers.length);
+        if (advisoryMembers.length > 0) {
+          console.log('MyItems: Sample advisory member:', advisoryMembers[0]);
+        }
       }
 
       const requestsWithProfiles = requests.map(request => ({
         ...request,
-        requestor_profile: requestorProfileMap[request.requestor_id] || null,
-        assignee_profile: assigneeProfileMap[request.assignee_id] || null
+        requestor_profile: profileMap[request.requestor_id] || null,
+        assignee_profile: profileMap[request.assignee_id] || null
       }));
 
       const twentyFourHoursAgo = new Date();
