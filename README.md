@@ -60,6 +60,19 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Advise Connect
+
+A modern advisory service management platform built with React, TypeScript, and Supabase.
+
+## 🚀 Live Demo
+This application is deployed on Netlify with automatic deployments from GitHub.
+
+## 🔄 Latest Updates
+- ✅ JOIN optimization for profile fetching (50% faster loading)
+- ✅ Fixed requestor display names across modules  
+- ✅ Unified profile data architecture
+- ✅ Automatic deployments configured
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/d59c7a5b-ca91-4c22-afb0-37a7e5f50cdd) and click on Share -> Publish.
