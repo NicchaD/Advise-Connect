@@ -26,13 +26,16 @@ import {
   Eye,
   AlertCircle,
   CheckCircle2,
+  CheckCircle,
   XCircle,
   Loader,
   Plus,
   Calculator,
   MessageSquare,
   DollarSign,
-  User as UserIcon
+  User as UserIcon,
+  Zap,
+  Settings
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { getRequestorDisplayName } from '@/lib/userUtils';
@@ -115,36 +118,42 @@ const ADVISORY_SERVICE_ID_TO_NAME_MAP: Record<string, string> = {
 };
 
 const STATUS_COLORS = {
-  'New': 'bg-blue-100 text-blue-800',
-  'Pending Review': 'bg-orange-100 text-orange-800',
-  'Review': 'bg-yellow-100 text-yellow-800',
-  'Approved': 'bg-purple-100 text-purple-800',
-  'Approval': 'bg-emerald-600 text-white',
-  'Estimation': 'bg-indigo-100 text-indigo-800',
-  'Implementing': 'bg-emerald-100 text-emerald-800',
-  'Awaiting Feedback': 'bg-amber-100 text-amber-800',
-  'Feedback Received': 'bg-violet-600 text-white',
-  'Implemented': 'bg-green-100 text-green-800',
-  'Under Discussion': 'bg-pink-100 text-pink-800',
-  'Cancelled': 'bg-red-100 text-red-800',
-  'Closed': 'bg-slate-600 text-white',
-  'Reject': 'bg-red-600 text-white'
+  'New': 'bg-blue-500 hover:bg-blue-600',
+  'Estimation': 'bg-purple-500 hover:bg-purple-600',
+  'Review': 'bg-yellow-500 hover:bg-yellow-600',
+  'Pending Review': 'bg-orange-500 hover:bg-orange-600',
+  'Under Discussion': 'bg-orange-400 hover:bg-orange-500',
+  'Pending Review by Advisory Head': 'bg-red-500 hover:bg-red-600',
+  'Approved by Advisory Head': 'bg-teal-500 hover:bg-teal-600',
+  'Approved': 'bg-teal-500 hover:bg-teal-600',
+  'Approval': 'bg-emerald-600 hover:bg-emerald-700',
+  'Implementing': 'bg-indigo-500 hover:bg-indigo-600',
+  'Implemented': 'bg-green-500 hover:bg-green-600',
+  'Awaiting Feedback': 'bg-amber-500 hover:bg-amber-600',
+  'Feedback Received': 'bg-violet-600 hover:bg-violet-700',
+  'Closed': 'bg-slate-600 hover:bg-slate-700',
+  'On Hold': 'bg-gray-500 hover:bg-gray-600',
+  'Cancelled': 'bg-red-600 hover:bg-red-700',
+  'Reject': 'bg-red-600 hover:bg-red-700'
 };
 
-const STATUS_ICONS = {
-  'New': AlertCircle,
-  'Pending Review': Clock,
-  'Review': Eye,
-  'Approved': CheckCircle2,
-  'Estimation': Calculator,
-  'Implementing': Loader,
-  'Awaiting Feedback': MessageSquare,
-  'Feedback Received': CheckCircle2,
-  'Implemented': CheckCircle2,
-  'Under Discussion': MessageSquare,
-  'Cancelled': XCircle,
-  'Closed': XCircle,
-  'Reject': XCircle
+const getStatusIcon = (status: string) => {
+  switch (status) {
+    case 'New':
+      return <Zap className="h-4 w-4" />;
+    case 'Estimation':
+      return <Calculator className="h-4 w-4" />;
+    case 'Approved':
+      return <CheckCircle className="h-4 w-4" />;
+    case 'Implementing':
+      return <Settings className="h-4 w-4" />;
+    case 'Implemented':
+      return <CheckCircle className="h-4 w-4" />;
+    case 'Closed':
+      return <CheckCircle className="h-4 w-4" />;
+    default:
+      return <FileText className="h-4 w-4" />;
+  }
 };
 
 export default function MyRequests() {
@@ -244,9 +253,6 @@ export default function MyRequests() {
         .eq('user_id', user.id)
         .single();
 
-      console.log('MyRequests: Fetched user profile:', userProfile);
-      console.log('MyRequests: Profile error:', profileError);
-
       const { data, error } = await supabase
         .from('requests')
         .select('*')
@@ -255,13 +261,47 @@ export default function MyRequests() {
 
       if (error) throw error;
       
-      // Attach the user profile to each request
+      // Get unique assignee IDs from requests
+      const assigneeIds = [...new Set((data || [])
+        .map(request => request.assignee_id)
+        .filter(id => id))] as string[];
+
+      // Fetch assignee profiles from advisory_team_members table
+      let assigneeProfiles: any[] = [];
+      if (assigneeIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('advisory_team_members')
+          .select('*')
+          .in('user_id', assigneeIds)
+          .eq('is_active', true);
+        
+        if (profilesError) {
+          console.error('Error fetching assignee profiles:', profilesError);
+        } else {
+          assigneeProfiles = profiles || [];
+          console.log('MyRequests: Successfully fetched assignee profiles from advisory_team_members:', assigneeProfiles.length);
+          if (assigneeProfiles.length > 0) {
+            console.log('MyRequests: Available advisory_team_members columns:', Object.keys(assigneeProfiles[0]));
+            console.log('MyRequests: Sample advisory_team_members data:', assigneeProfiles[0]);
+          }
+        }
+      }
+
+      // Create a map of user_id to profile for quick lookup
+      const profileMap = assigneeProfiles.reduce((acc, profile) => {
+        acc[profile.user_id] = profile;
+        return acc;
+      }, {} as Record<string, any>);
+
+      // Attach both requestor and assignee profiles to each request
       const requestsWithProfile = (data || []).map(request => ({
         ...request,
-        requestor_profile: userProfile
+        requestor_profile: userProfile,
+        assignee_profile: profileMap[request.assignee_id] || null
       }));
       
-      console.log('MyRequests: Requests with profile:', requestsWithProfile[0]);
+      console.log('MyRequests: Fetched requests with assignee profiles:', requestsWithProfile.length);
+      console.log('MyRequests: Sample request with assignee_profile:', requestsWithProfile[0]);
       
       setRequests(requestsWithProfile);
     } catch (error) {
@@ -292,11 +332,6 @@ export default function MyRequests() {
     }
 
     setFilteredRequests(filtered);
-  };
-
-  const getStatusIcon = (status: string) => {
-    const Icon = STATUS_ICONS[status as keyof typeof STATUS_ICONS] || AlertCircle;
-    return <Icon className="h-4 w-4" />;
   };
 
   const getToolDisplayName = (toolId: string): string => {
@@ -590,6 +625,24 @@ export default function MyRequests() {
     }
   }, [selectedRequest]);
 
+  // Set assignee info when selectedRequest changes
+  useEffect(() => {
+    console.log('MyRequests: Selected request changed:', {
+      request_id: selectedRequest?.request_id,
+      assignee_id: selectedRequest?.assignee_id,
+      has_assignee_profile: !!selectedRequest?.assignee_profile,
+      assignee_profile: selectedRequest?.assignee_profile
+    });
+    
+    if (selectedRequest?.assignee_profile) {
+      console.log('MyRequests: Setting assigneeInfo from assignee_profile:', selectedRequest.assignee_profile);
+      setAssigneeInfo(selectedRequest.assignee_profile);
+    } else {
+      console.log('MyRequests: No assignee_profile found, setting assigneeInfo to null');
+      setAssigneeInfo(null);
+    }
+  }, [selectedRequest?.assignee_profile]);
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
@@ -745,14 +798,17 @@ export default function MyRequests() {
           </DialogHeader>
           {selectedRequest && (
             <div className="space-y-6">
+              {/* Header with Status Badge */}
+              <div className="flex items-center justify-between">
+                <Badge variant="outline" className={`${STATUS_COLORS[selectedRequest.status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-800'} text-white`}>
+                  {getStatusIcon(selectedRequest.status)}
+                  {selectedRequest.status}
+                </Badge>
+              </div>
+
               {/* Request Details Section - Reusable Component */}
               {(() => {
                 const displayName = getRequestorDisplayName(selectedRequest.requestor_profile, selectedRequest.requestor_id);
-                console.log('MyRequests: RequestDetailsSection props:', {
-                  requestor_profile: selectedRequest.requestor_profile,
-                  requestor_id: selectedRequest.requestor_id,
-                  displayName
-                });
                 return (
                   <RequestDetailsSection
                     request={selectedRequest as Request}
@@ -779,6 +835,7 @@ export default function MyRequests() {
                   calculatedHours={calculatedHours}
                   calculatedPD={calculatedPD}
                   variant="default"
+                  showEditableBadge={false}
                 />
               )}
 

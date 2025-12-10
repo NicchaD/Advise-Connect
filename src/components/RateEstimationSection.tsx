@@ -61,7 +61,8 @@ export const RateEstimationSection: React.FC<RateEstimationSectionProps> = ({
   calculatedPD,
   className,
   showTitle = true,
-  variant = 'default'
+  variant = 'default',
+  showEditableBadge = true
 }) => {
   // Determine if estimation is frozen (saved during estimation phase)
   const isFrozen = !!request.estimation_saved_at;
@@ -75,9 +76,11 @@ export const RateEstimationSection: React.FC<RateEstimationSectionProps> = ({
     ? (request.saved_total_pd_estimate && request.saved_total_pd_estimate > 0 ? request.saved_total_pd_estimate : calculatedPD)
     : calculatedPD;
     
+  // Using designation and rate_per_hour from advisory_team_members table
+  
   const displayRole = (request.status === 'Estimation' && !isFrozen)
-    ? (assigneeInfo?.designation || assigneeInfo?.title || 'Not assigned')
-    : (request.saved_assignee_role || assigneeInfo?.designation || assigneeInfo?.title || 'Not assigned');
+    ? (assigneeInfo?.designation || 'Not assigned')
+    : (request.saved_assignee_role || assigneeInfo?.designation || 'Not assigned');
     
   const displayRate = (request.status === 'Estimation' && !isFrozen)
     ? (assigneeInfo?.rate_per_hour || 0)
@@ -144,7 +147,7 @@ export const RateEstimationSection: React.FC<RateEstimationSectionProps> = ({
               }
             </Badge>
           )}
-          {!isFrozen && request.status === 'Estimation' && (
+          {!isFrozen && request.status === 'Estimation' && showEditableBadge && (
             <Badge variant="secondary" className="ml-2 text-xs">
               Editable - Click "Save Activities" to freeze values
             </Badge>

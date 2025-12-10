@@ -15,7 +15,7 @@ import { RateEstimationSection } from '@/components/RateEstimationSection';
 import { BillabilityPercentageSection } from '@/components/BillabilityPercentageSection';
 import { ActivitiesDetailsSection } from '@/components/ActivitiesDetailsSection';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchUserProfiles, getUserDisplayName, getRequestorDisplayName, createProfileLookupMap } from '@/lib/userUtils';
+import { fetchUserProfiles, getUserDisplayName, getRequestorDisplayName, createProfileLookupMap, fetchAssigneeProfiles, createAssigneeProfileLookupMap } from '@/lib/userUtils';
 import { useToast } from '@/hooks/use-toast';
 import { 
   AlertCircle, 
@@ -203,6 +203,17 @@ export default function MyItems() {
       setBillabilityPercentage(currentValue);
     }
   }, [selectedRequest?.id, selectedRequest?.billability_percentage]);
+
+  // Set assignee info when selectedRequest changes
+  useEffect(() => {
+    if (selectedRequest?.assignee_profile) {
+      console.log('MyItems: Setting assigneeInfo from assignee_profile:', selectedRequest.assignee_profile);
+      setAssigneeInfo(selectedRequest.assignee_profile);
+    } else {
+      console.log('MyItems: No assignee_profile found, setting assigneeInfo to null');
+      setAssigneeInfo(null);
+    }
+  }, [selectedRequest?.assignee_profile]);
 
   // Calculate hours when selectedRequest changes
   useEffect(() => {
@@ -832,16 +843,24 @@ export default function MyItems() {
 
       const requestorIds = requests.map(r => r.requestor_id).filter(id => id);
       const assigneeIds = requests.map(r => r.assignee_id).filter(id => id);
-      const allUserIds = [...new Set([...requestorIds, ...assigneeIds])];
       
-      // Fetch profiles using utility function
-      const profiles = await fetchUserProfiles(allUserIds);
-      const profileMap = createProfileLookupMap(profiles);
+      // Fetch requestor profiles from profiles table
+      const requestorProfiles = await fetchUserProfiles(requestorIds);
+      const requestorProfileMap = createProfileLookupMap(requestorProfiles);
+      
+      // Fetch assignee profiles from advisory_team_members table
+      const assigneeProfiles = await fetchAssigneeProfiles(assigneeIds);
+      const assigneeProfileMap = createAssigneeProfileLookupMap(assigneeProfiles);
+      
+      console.log('MyItems: Fetched assignee profiles from advisory_team_members:', assigneeProfiles.length);
+      if (assigneeProfiles.length > 0) {
+        console.log('MyItems: Sample assignee profile:', assigneeProfiles[0]);
+      }
 
       const requestsWithProfiles = requests.map(request => ({
         ...request,
-        requestor_profile: profileMap[request.requestor_id] || null,
-        assignee_profile: profileMap[request.assignee_id] || null
+        requestor_profile: requestorProfileMap[request.requestor_id] || null,
+        assignee_profile: assigneeProfileMap[request.assignee_id] || null
       }));
 
       const twentyFourHoursAgo = new Date();

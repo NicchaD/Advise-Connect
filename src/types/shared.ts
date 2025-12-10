@@ -72,6 +72,7 @@ export interface RateEstimationSectionProps {
   className?: string;
   showTitle?: boolean;
   variant?: 'default' | 'compact' | 'detailed';
+  showEditableBadge?: boolean;
 }
 
 /**

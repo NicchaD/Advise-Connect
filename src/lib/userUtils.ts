@@ -6,6 +6,15 @@ export interface UserProfile {
   email: string;
 }
 
+export interface AssigneeProfile {
+  user_id: string;
+  name: string;
+  title: string;
+  designation: string;
+  rate_per_hour: number;
+  email?: string;
+}
+
 export const fetchUserProfiles = async (userIds: string[]): Promise<UserProfile[]> => {
   if (userIds.length === 0) return [];
 
@@ -92,9 +101,38 @@ export const getRequestorDisplayName = (profile: any, requestorId: string): stri
   return 'Unknown User';
 };
 
+export const fetchAssigneeProfiles = async (userIds: string[]): Promise<AssigneeProfile[]> => {
+  if (userIds.length === 0) return [];
+
+  try {
+    const { data: profiles, error } = await supabase
+      .from('advisory_team_members')
+      .select('user_id, name, title, designation, rate_per_hour, email')
+      .in('user_id', userIds)
+      .eq('is_active', true);
+
+    if (error) {
+      console.error('Error fetching assignee profiles:', error);
+      return [];
+    }
+
+    return profiles || [];
+  } catch (error) {
+    console.error('Error in fetchAssigneeProfiles:', error);
+    return [];
+  }
+};
+
 export const createProfileLookupMap = (profiles: UserProfile[]): Record<string, UserProfile> => {
   return profiles.reduce((acc, profile) => {
     acc[profile.user_id] = profile;
     return acc;
   }, {} as Record<string, UserProfile>);
+};
+
+export const createAssigneeProfileLookupMap = (profiles: AssigneeProfile[]): Record<string, AssigneeProfile> => {
+  return profiles.reduce((acc, profile) => {
+    acc[profile.user_id] = profile;
+    return acc;
+  }, {} as Record<string, AssigneeProfile>);
 };
