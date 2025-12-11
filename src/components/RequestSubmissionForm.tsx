@@ -96,14 +96,14 @@ const autoAssignConsultant = async (selectedOfferings: string[]) => {
 };
 
 const projectDataSchema = z.object({
-  projectId: z.string().regex(/^\d+$/, 'Project ID must contain only numeric values').min(1, 'Project ID is required'),
-  projectName: z.string().min(1, 'Project Name is required'),
+  projectId: z.string().optional(),
+  projectName: z.string().optional(),
   accountName: z.string().min(1, 'Account Name is required'),
   projectOwningUnit: z.string().optional(),
   deliveryExcellencePOC: z.string().optional(),
-  projectPM: z.string().optional(),
-  projectPOCEmail: z.string().email('Valid email format required').optional().or(z.literal('')),
-  los: z.string().optional(),
+  projectPM: z.string().regex(/^\d+$/, 'Project PM ID must contain only numeric values').min(1, 'Project PM ID is required'),
+  projectPOCEmail: z.string().min(1, 'Project POC ID is required'),
+  lob: z.string().optional(),
   vertical: z.string().optional(),
   businessUnit: z.string().optional(),
   marketUnit: z.string().optional(),
@@ -155,7 +155,7 @@ export default function RequestSubmissionForm({
       deliveryExcellencePOC: '',
       projectPM: '',
       projectPOCEmail: '',
-      los: '',
+      lob: '',
       vertical: '',
       businessUnit: '',
       marketUnit: '',
@@ -426,7 +426,7 @@ export default function RequestSubmissionForm({
                             name="projectId"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Project ID *</FormLabel>
+                                <FormLabel>Project ID</FormLabel>
                                 <FormControl>
                                   <Input placeholder="Enter project ID" {...field} />
                                 </FormControl>
@@ -440,7 +440,7 @@ export default function RequestSubmissionForm({
                             name="projectName"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Project Name *</FormLabel>
+                                <FormLabel>Project Name</FormLabel>
                                 <FormControl>
                                   <Input placeholder="Enter project name" {...field} />
                                 </FormControl>
@@ -496,7 +496,7 @@ export default function RequestSubmissionForm({
                             name="projectPM"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Project PM ID</FormLabel>
+                                <FormLabel>Project PM ID *</FormLabel>
                                 <FormControl>
                                   <Input placeholder="Enter PM ID (numeric)" {...field} />
                                 </FormControl>
@@ -511,9 +511,9 @@ export default function RequestSubmissionForm({
                           name="projectPOCEmail"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Project POC Email ID</FormLabel>
+                              <FormLabel>Project POC ID *</FormLabel>
                               <FormControl>
-                                <Input type="email" placeholder="Enter email address" {...field} />
+                                <Input placeholder="Enter POC ID" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -529,7 +529,7 @@ export default function RequestSubmissionForm({
                         <div className="grid md:grid-cols-2 gap-4">
                           <FormField
                             control={projectForm.control}
-                            name="los"
+                            name="lob"
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>LOS</FormLabel>

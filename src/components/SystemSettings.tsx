@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
-import { Plus, Edit, Trash2, Settings, Users, List, Mail, Wrench, Package, Activity } from 'lucide-react';
+import { Plus, Edit, Trash2, Settings, Users, List, Mail, Wrench, Package, Activity, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -129,6 +129,9 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
     icon: '',
     display_order: 0
   });
+  const [serviceFormErrors, setServiceFormErrors] = useState({
+    name: ''
+  });
 
   // Service offerings management state
   const [isOfferingDialogOpen, setIsOfferingDialogOpen] = useState(false);
@@ -140,6 +143,17 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
     icon: '',
     display_order: 0
   });
+  const [offeringFormErrors, setOfferingFormErrors] = useState({
+    advisory_service_id: '',
+    name: ''
+  });
+  // Multiple offerings state for create mode
+  const [multipleOfferings, setMultipleOfferings] = useState([
+    { name: '', description: '', icon: '', display_order: 0 }
+  ]);
+  const [multipleOfferingsErrors, setMultipleOfferingsErrors] = useState([
+    { name: '' }
+  ]);
 
   // Activities management state
   const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false);
@@ -151,6 +165,13 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
     advisory_service_id: '',
     display_order: 0
   });
+  // Multiple activities state for create mode
+  const [multipleActivities, setMultipleActivities] = useState([
+    { name: '', estimated_hours: 0, display_order: 0 }
+  ]);
+  const [multipleActivitiesErrors, setMultipleActivitiesErrors] = useState([
+    { name: '' }
+  ]);
 
   // Sub-activities management state
   const [isSubActivityDialogOpen, setIsSubActivityDialogOpen] = useState(false);
@@ -164,6 +185,13 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
     service_offering_id: '',
     display_order: 0
   });
+  // Multiple sub-activities state for create mode
+  const [multipleSubActivities, setMultipleSubActivities] = useState([
+    { name: '', estimated_hours: 0, associated_tool: '', display_order: 0 }
+  ]);
+  const [multipleSubActivitiesErrors, setMultipleSubActivitiesErrors] = useState([
+    { name: '' }
+  ]);
 
   const dropdownCategories = [
     { value: 'user_titles', label: 'User Titles' },
@@ -590,7 +618,81 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
   };
 
   // Advisory services management functions
+  const validateServiceForm = () => {
+    const errors = { name: '' };
+    
+    if (!serviceFormData.name.trim()) {
+      errors.name = 'Service Name is required';
+    }
+    
+    setServiceFormErrors(errors);
+    return !errors.name; // Return true if no errors
+  };
+
+  const handleCreateServiceAndNext = async () => {
+    // Validate required fields
+    if (!validateServiceForm()) {
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('advisory_services')
+        .insert([serviceFormData])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Advisory service created successfully. Now create a service offering."
+      });
+
+      // Clear the service form
+      setServiceFormData({
+        name: '',
+        description: '',
+        icon: '',
+        display_order: 0
+      });
+      setServiceFormErrors({ name: '' });
+      setIsServiceDialogOpen(false);
+      
+      // Refresh advisory services list
+      fetchAdvisoryServices();
+      
+      // Switch to service offerings tab and open the dialog with pre-selected service
+      setActiveSystemTab('service-offerings');
+      
+      // Small delay to ensure tab switch completes before opening dialog
+      setTimeout(() => {
+        setOfferingFormData({
+          advisory_service_id: data.id, // Pre-select the newly created service
+          name: '',
+          description: '',
+          icon: '',
+          display_order: 0
+        });
+        setEditingOffering(null);
+        setIsOfferingDialogOpen(true);
+      }, 100);
+      
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create advisory service",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleCreateService = async () => {
+    // This is the original create function (kept for backward compatibility if needed)
+    if (!validateServiceForm()) {
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('advisory_services')
@@ -609,6 +711,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
         icon: '',
         display_order: 0
       });
+      setServiceFormErrors({ name: '' });
       setIsServiceDialogOpen(false);
       fetchAdvisoryServices();
     } catch (error: any) {
@@ -630,8 +733,75 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
     setCurrentPage(page);
   };
 
+  const handleEditServiceAndNext = async () => {
+    if (!editingService) return;
+
+    // Validate required fields
+    if (!validateServiceForm()) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('advisory_services')
+        .update(serviceFormData)
+        .eq('id', editingService.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Advisory service updated successfully. Now create a service offering."
+      });
+
+      const serviceId = editingService.id;
+      
+      // Clear the service form
+      setEditingService(null);
+      setServiceFormData({
+        name: '',
+        description: '',
+        icon: '',
+        display_order: 0
+      });
+      setServiceFormErrors({ name: '' });
+      setIsServiceDialogOpen(false);
+      
+      // Refresh advisory services list
+      fetchAdvisoryServices();
+      
+      // Switch to service offerings tab and open the dialog with pre-selected service
+      setActiveSystemTab('service-offerings');
+      
+      // Small delay to ensure tab switch completes before opening dialog
+      setTimeout(() => {
+        setOfferingFormData({
+          advisory_service_id: serviceId, // Pre-select the updated service
+          name: '',
+          description: '',
+          icon: '',
+          display_order: 0
+        });
+        setEditingOffering(null);
+        setIsOfferingDialogOpen(true);
+      }, 100);
+      
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update advisory service",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleEditService = async () => {
     if (!editingService) return;
+
+    // Validate required fields
+    if (!validateServiceForm()) {
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -653,12 +823,37 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
         icon: '',
         display_order: 0
       });
+      setServiceFormErrors({ name: '' });
       setIsServiceDialogOpen(false);
       fetchAdvisoryServices();
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to update advisory service",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const toggleServiceStatus = async (service: AdvisoryService) => {
+    try {
+      const { error } = await supabase
+        .from('advisory_services')
+        .update({ is_active: !service.is_active })
+        .eq('id', service.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Advisory service ${!service.is_active ? 'activated' : 'deactivated'} successfully`
+      });
+
+      fetchAdvisoryServices();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update advisory service status",
         variant: "destructive"
       });
     }
@@ -690,7 +885,187 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
   };
 
   // Service offerings management functions
+  const addNewOffering = () => {
+    setMultipleOfferings([...multipleOfferings, { name: '', description: '', icon: '', display_order: multipleOfferings.length }]);
+    setMultipleOfferingsErrors([...multipleOfferingsErrors, { name: '' }]);
+  };
+
+  const removeOffering = (index: number) => {
+    if (multipleOfferings.length > 1) {
+      const newOfferings = multipleOfferings.filter((_, i) => i !== index);
+      const newErrors = multipleOfferingsErrors.filter((_, i) => i !== index);
+      setMultipleOfferings(newOfferings);
+      setMultipleOfferingsErrors(newErrors);
+    }
+  };
+
+  const updateOffering = (index: number, field: string, value: string | number) => {
+    const newOfferings = [...multipleOfferings];
+    newOfferings[index] = { ...newOfferings[index], [field]: value };
+    setMultipleOfferings(newOfferings);
+    
+    // Clear error when user starts typing
+    if (field === 'name' && multipleOfferingsErrors[index].name) {
+      const newErrors = [...multipleOfferingsErrors];
+      newErrors[index] = { ...newErrors[index], name: '' };
+      setMultipleOfferingsErrors(newErrors);
+    }
+  };
+
+  const validateOfferingForm = () => {
+    const errors = { advisory_service_id: '', name: '' };
+    
+    if (!offeringFormData.advisory_service_id.trim()) {
+      errors.advisory_service_id = 'Advisory Service is required';
+    }
+    
+    if (!offeringFormData.name.trim()) {
+      errors.name = 'Offering Name is required';
+    }
+    
+    setOfferingFormErrors(errors);
+    return !errors.advisory_service_id && !errors.name; // Return true if no errors
+  };
+
+  const validateMultipleOfferings = (selectedServiceId: string) => {
+    const errors = multipleOfferings.map(offering => ({
+      name: offering.name.trim() ? '' : 'Offering Name is required'
+    }));
+    
+    setMultipleOfferingsErrors(errors);
+    
+    const hasServiceError = !selectedServiceId.trim();
+    const hasOfferingErrors = errors.some(error => error.name);
+    
+    return !hasServiceError && !hasOfferingErrors;
+  };
+
+  const handleCreateMultipleOfferingsAndNext = async (selectedServiceId: string) => {
+    // Validate required fields
+    if (!validateMultipleOfferings(selectedServiceId)) {
+      return;
+    }
+
+    try {
+      // Prepare offerings data with the selected advisory service
+      const offeringsToInsert = multipleOfferings.map(offering => ({
+        advisory_service_id: selectedServiceId,
+        name: offering.name,
+        description: offering.description,
+        icon: offering.icon,
+        display_order: offering.display_order
+      }));
+
+      const { data, error } = await supabase
+        .from('service_offerings')
+        .insert(offeringsToInsert)
+        .select();
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `${multipleOfferings.length} service offering(s) created successfully. Now add activities.`
+      });
+
+      // Clear the offering form
+      setMultipleOfferings([{ name: '', description: '', icon: '', display_order: 0 }]);
+      setMultipleOfferingsErrors([{ name: '' }]);
+      setIsOfferingDialogOpen(false);
+      
+      // Refresh service offerings list
+      fetchServiceOfferings();
+      
+      // Switch to activities tab and open the dialog with pre-selected service offering (first one created)
+      setActiveSystemTab('activities');
+      
+      // Small delay to ensure tab switch completes before opening dialog
+      setTimeout(() => {
+        setActivityFormData({
+          name: '',
+          estimated_hours: 0,
+          service_offering_id: data[0].id, // Pre-select the first newly created offering
+          advisory_service_id: selectedServiceId,
+          display_order: 0
+        });
+        setEditingActivity(null);
+        setIsActivityDialogOpen(true);
+      }, 100);
+      
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create service offerings",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleCreateOfferingAndNext = async () => {
+    // Validate required fields
+    if (!validateOfferingForm()) {
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('service_offerings')
+        .insert([offeringFormData])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Service offering created successfully. Now add activities."
+      });
+
+      // Clear the offering form
+      setOfferingFormData({
+        advisory_service_id: '',
+        name: '',
+        description: '',
+        icon: '',
+        display_order: 0
+      });
+      setOfferingFormErrors({ advisory_service_id: '', name: '' });
+      setIsOfferingDialogOpen(false);
+      
+      // Refresh service offerings list
+      fetchServiceOfferings();
+      
+      // Switch to activities tab and open the dialog with pre-selected service offering
+      setActiveSystemTab('activities');
+      
+      // Small delay to ensure tab switch completes before opening dialog
+      setTimeout(() => {
+        setActivityFormData({
+          name: '',
+          estimated_hours: 0,
+          service_offering_id: data.id, // Pre-select the newly created offering
+          advisory_service_id: offeringFormData.advisory_service_id,
+          display_order: 0
+        });
+        setEditingActivity(null);
+        setIsActivityDialogOpen(true);
+      }, 100);
+      
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create service offering",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleCreateOffering = async () => {
+    // Validate required fields
+    if (!validateOfferingForm()) {
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('service_offerings')
@@ -710,6 +1085,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
         icon: '',
         display_order: 0
       });
+      setOfferingFormErrors({ advisory_service_id: '', name: '' });
       setIsOfferingDialogOpen(false);
       fetchServiceOfferings();
     } catch (error: any) {
@@ -721,8 +1097,76 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
     }
   };
 
+  const handleEditOfferingAndNext = async () => {
+    if (!editingOffering) return;
+
+    // Validate required fields
+    if (!validateOfferingForm()) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('service_offerings')
+        .update(offeringFormData)
+        .eq('id', editingOffering.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Service offering updated successfully. Now add activities."
+      });
+
+      const offeringId = editingOffering.id;
+      
+      // Clear the offering form
+      setEditingOffering(null);
+      setOfferingFormData({
+        advisory_service_id: '',
+        name: '',
+        description: '',
+        icon: '',
+        display_order: 0
+      });
+      setOfferingFormErrors({ advisory_service_id: '', name: '' });
+      setIsOfferingDialogOpen(false);
+      
+      // Refresh service offerings list
+      fetchServiceOfferings();
+      
+      // Switch to activities tab and open the dialog with pre-selected service offering
+      setActiveSystemTab('activities');
+      
+      // Small delay to ensure tab switch completes before opening dialog
+      setTimeout(() => {
+        setActivityFormData({
+          name: '',
+          estimated_hours: 0,
+          service_offering_id: offeringId, // Pre-select the updated offering
+          advisory_service_id: offeringFormData.advisory_service_id,
+          display_order: 0
+        });
+        setEditingActivity(null);
+        setIsActivityDialogOpen(true);
+      }, 100);
+      
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update service offering",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleEditOffering = async () => {
     if (!editingOffering) return;
+
+    // Validate required fields
+    if (!validateOfferingForm()) {
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -745,6 +1189,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
         icon: '',
         display_order: 0
       });
+      setOfferingFormErrors({ advisory_service_id: '', name: '' });
       setIsOfferingDialogOpen(false);
       fetchServiceOfferings();
     } catch (error: any) {
@@ -788,6 +1233,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
       icon: service.icon || '',
       display_order: service.display_order
     });
+    setServiceFormErrors({ name: '' }); // Clear any existing errors
     setIsServiceDialogOpen(true);
   };
 
@@ -800,10 +1246,156 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
       icon: offering.icon || '',
       display_order: offering.display_order
     });
+    setOfferingFormErrors({ advisory_service_id: '', name: '' }); // Clear any existing errors
     setIsOfferingDialogOpen(true);
   };
 
   // Activities management functions
+  const addNewActivity = () => {
+    setMultipleActivities([...multipleActivities, { name: '', estimated_hours: 0, display_order: multipleActivities.length }]);
+    setMultipleActivitiesErrors([...multipleActivitiesErrors, { name: '' }]);
+  };
+
+  const removeActivity = (index: number) => {
+    if (multipleActivities.length > 1) {
+      const newActivities = multipleActivities.filter((_, i) => i !== index);
+      const newErrors = multipleActivitiesErrors.filter((_, i) => i !== index);
+      setMultipleActivities(newActivities);
+      setMultipleActivitiesErrors(newErrors);
+    }
+  };
+
+  const updateActivity = (index: number, field: string, value: string | number) => {
+    const newActivities = [...multipleActivities];
+    newActivities[index] = { ...newActivities[index], [field]: value };
+    setMultipleActivities(newActivities);
+    
+    // Clear error when user starts typing
+    if (field === 'name' && multipleActivitiesErrors[index].name) {
+      const newErrors = [...multipleActivitiesErrors];
+      newErrors[index] = { ...newErrors[index], name: '' };
+      setMultipleActivitiesErrors(newErrors);
+    }
+  };
+
+  const validateMultipleActivities = (selectedServiceId: string, selectedOfferingId: string) => {
+    const errors = multipleActivities.map(activity => ({
+      name: activity.name.trim() ? '' : 'Activity Name is required'
+    }));
+    
+    setMultipleActivitiesErrors(errors);
+    
+    const hasServiceError = !selectedServiceId.trim();
+    const hasOfferingError = !selectedOfferingId.trim();
+    const hasActivityErrors = errors.some(error => error.name);
+    
+    return !hasServiceError && !hasOfferingError && !hasActivityErrors;
+  };
+
+  const handleCreateMultipleActivitiesAndNext = async (selectedServiceId: string, selectedOfferingId: string) => {
+    // Validate required fields
+    if (!validateMultipleActivities(selectedServiceId, selectedOfferingId)) {
+      return;
+    }
+
+    try {
+      // Prepare activities data with the selected service offering
+      const activitiesToInsert = multipleActivities.map(activity => ({
+        name: activity.name,
+        estimated_hours: activity.estimated_hours,
+        service_offering_id: selectedOfferingId,
+        advisory_service_id: selectedServiceId,
+        display_order: activity.display_order
+      }));
+
+      const { data, error } = await supabase
+        .from('activities')
+        .insert(activitiesToInsert)
+        .select();
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `${multipleActivities.length} activit${multipleActivities.length === 1 ? 'y' : 'ies'} created successfully. Now add sub-activities.`
+      });
+
+      // Clear the activities form
+      setMultipleActivities([{ name: '', estimated_hours: 0, display_order: 0 }]);
+      setMultipleActivitiesErrors([{ name: '' }]);
+      setIsActivityDialogOpen(false);
+      
+      // Refresh activities list
+      fetchActivities();
+      
+      // Open sub-activities dialog with pre-selected first activity
+      setTimeout(() => {
+        setSubActivityFormData({
+          activity_id: data[0].id, // Pre-select the first newly created activity
+          name: '',
+          estimated_hours: 0,
+          associated_tool: '',
+          advisory_service_id: selectedServiceId,
+          service_offering_id: selectedOfferingId,
+          display_order: 0
+        });
+        setEditingSubActivity(null);
+        setIsSubActivityDialogOpen(true);
+      }, 100);
+      
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create activities",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleCreateMultipleActivities = async (selectedServiceId: string, selectedOfferingId: string) => {
+    // Validate required fields
+    if (!validateMultipleActivities(selectedServiceId, selectedOfferingId)) {
+      return;
+    }
+
+    try {
+      // Prepare activities data with the selected service offering
+      const activitiesToInsert = multipleActivities.map(activity => ({
+        name: activity.name,
+        estimated_hours: activity.estimated_hours,
+        service_offering_id: selectedOfferingId,
+        advisory_service_id: selectedServiceId,
+        display_order: activity.display_order
+      }));
+
+      const { error } = await supabase
+        .from('activities')
+        .insert(activitiesToInsert);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `${multipleActivities.length} activit${multipleActivities.length === 1 ? 'y' : 'ies'} created successfully.`
+      });
+
+      // Clear the activities form
+      setMultipleActivities([{ name: '', estimated_hours: 0, display_order: 0 }]);
+      setMultipleActivitiesErrors([{ name: '' }]);
+      setIsActivityDialogOpen(false);
+      
+      // Refresh activities list
+      fetchActivities();
+      
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create activities",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleCreateActivity = async () => {
     try {
       const { error } = await supabase
@@ -907,6 +1499,92 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
   };
 
   // Sub-activities management functions
+  const addNewSubActivity = () => {
+    setMultipleSubActivities([...multipleSubActivities, { name: '', estimated_hours: 0, associated_tool: '', display_order: multipleSubActivities.length }]);
+    setMultipleSubActivitiesErrors([...multipleSubActivitiesErrors, { name: '' }]);
+  };
+
+  const removeSubActivity = (index: number) => {
+    if (multipleSubActivities.length > 1) {
+      const newSubActivities = multipleSubActivities.filter((_, i) => i !== index);
+      const newErrors = multipleSubActivitiesErrors.filter((_, i) => i !== index);
+      setMultipleSubActivities(newSubActivities);
+      setMultipleSubActivitiesErrors(newErrors);
+    }
+  };
+
+  const updateSubActivity = (index: number, field: string, value: string | number) => {
+    const newSubActivities = [...multipleSubActivities];
+    newSubActivities[index] = { ...newSubActivities[index], [field]: value };
+    setMultipleSubActivities(newSubActivities);
+    
+    // Clear error when user starts typing
+    if (field === 'name' && multipleSubActivitiesErrors[index].name) {
+      const newErrors = [...multipleSubActivitiesErrors];
+      newErrors[index] = { ...newErrors[index], name: '' };
+      setMultipleSubActivitiesErrors(newErrors);
+    }
+  };
+
+  const validateMultipleSubActivities = (selectedServiceId: string, selectedOfferingId: string, selectedActivityId: string) => {
+    const errors = multipleSubActivities.map(subActivity => ({
+      name: subActivity.name.trim() ? '' : 'Sub-Activity Name is required'
+    }));
+    
+    setMultipleSubActivitiesErrors(errors);
+    
+    const hasServiceError = !selectedServiceId.trim();
+    const hasOfferingError = !selectedOfferingId.trim();
+    const hasActivityError = !selectedActivityId.trim();
+    const hasSubActivityErrors = errors.some(error => error.name);
+    
+    return !hasServiceError && !hasOfferingError && !hasActivityError && !hasSubActivityErrors;
+  };
+
+  const handleCreateMultipleSubActivities = async (selectedServiceId: string, selectedOfferingId: string, selectedActivityId: string) => {
+    // Validate required fields
+    if (!validateMultipleSubActivities(selectedServiceId, selectedOfferingId, selectedActivityId)) {
+      return;
+    }
+
+    try {
+      // Prepare sub-activities data with the selected activity
+      const subActivitiesToInsert = multipleSubActivities.map(subActivity => ({
+        activity_id: selectedActivityId,
+        name: subActivity.name,
+        estimated_hours: subActivity.estimated_hours,
+        associated_tool: subActivity.associated_tool || null,
+        display_order: subActivity.display_order
+      }));
+
+      const { error } = await supabase
+        .from('sub_activities')
+        .insert(subActivitiesToInsert);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `${multipleSubActivities.length} sub-activit${multipleSubActivities.length === 1 ? 'y' : 'ies'} created successfully.`
+      });
+
+      // Clear the sub-activities form
+      setMultipleSubActivities([{ name: '', estimated_hours: 0, associated_tool: '', display_order: 0 }]);
+      setMultipleSubActivitiesErrors([{ name: '' }]);
+      setIsSubActivityDialogOpen(false);
+      
+      // Refresh sub-activities list
+      fetchSubActivities();
+      
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create sub-activities",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleCreateSubActivity = async () => {
     if (!subActivityFormData.advisory_service_id || !subActivityFormData.service_offering_id || !subActivityFormData.activity_id || !subActivityFormData.name) {
       toast({
@@ -1087,7 +1765,13 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
                     Configure the main advisory service categories available in the system
                   </CardDescription>
                 </div>
-                <Dialog open={isServiceDialogOpen} onOpenChange={setIsServiceDialogOpen}>
+                <Dialog open={isServiceDialogOpen} onOpenChange={(open) => {
+                  setIsServiceDialogOpen(open);
+                  if (open && !editingService) {
+                    // Clear errors when opening create dialog
+                    setServiceFormErrors({ name: '' });
+                  }
+                }}>
                   <DialogTrigger asChild>
                     <Button className="flex items-center gap-2">
                       <Plus className="h-4 w-4" />
@@ -1100,17 +1784,32 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
                         {editingService ? 'Edit Advisory Service' : 'Create New Advisory Service'}
                       </DialogTitle>
                       <DialogDescription>
-                        Add or edit advisory service information.
+                        {editingService 
+                          ? 'Edit advisory service information. Use "Save" to update only, or "Save and Proceed Next" to update and create service offerings.' 
+                          : 'Add advisory service information. After saving, you\'ll be guided to create service offerings.'
+                        }
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div>
-                        <Label htmlFor="service-name">Service Name</Label>
+                        <Label htmlFor="service-name">Service Name <span className="text-red-500">*</span></Label>
                         <Input
                           id="service-name"
                           value={serviceFormData.name}
-                          onChange={(e) => setServiceFormData({ ...serviceFormData, name: e.target.value })}
+                          onChange={(e) => {
+                            setServiceFormData({ ...serviceFormData, name: e.target.value });
+                            // Clear error when user starts typing
+                            if (serviceFormErrors.name) {
+                              setServiceFormErrors({ ...serviceFormErrors, name: '' });
+                            }
+                          }}
+                          placeholder="Enter service name (required)"
+                          className={serviceFormErrors.name ? 'border-red-500 focus:border-red-500' : ''}
+                          required
                         />
+                        {serviceFormErrors.name && (
+                          <p className="text-sm text-red-500 mt-1">{serviceFormErrors.name}</p>
+                        )}
                       </div>
                       <div>
                         <Label htmlFor="service-description">Description</Label>
@@ -1138,12 +1837,31 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
                           onChange={(e) => setServiceFormData({ ...serviceFormData, display_order: parseInt(e.target.value) || 0 })}
                         />
                       </div>
-                      <Button 
-                        onClick={editingService ? handleEditService : handleCreateService} 
-                        className="w-full"
-                      >
-                        {editingService ? 'Update Service' : 'Create Service'}
-                      </Button>
+                      {editingService ? (
+                        // Edit mode: Show both buttons
+                        <div className="flex gap-3">
+                          <Button 
+                            onClick={handleEditService} 
+                            className="flex-1"
+                          >
+                            Save
+                          </Button>
+                          <Button 
+                            onClick={handleEditServiceAndNext} 
+                            className="flex-1"
+                          >
+                            Save and Proceed Next
+                          </Button>
+                        </div>
+                      ) : (
+                        // Create mode: Show only "Save and Proceed Next" button
+                        <Button 
+                          onClick={handleCreateServiceAndNext} 
+                          className="w-full"
+                        >
+                          Save and Proceed Next
+                        </Button>
+                      )}
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -1223,79 +1941,216 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
                     Configure specific offerings available for each advisory service
                   </CardDescription>
                 </div>
-                <Dialog open={isOfferingDialogOpen} onOpenChange={setIsOfferingDialogOpen}>
+                <Dialog open={isOfferingDialogOpen} onOpenChange={(open) => {
+                  setIsOfferingDialogOpen(open);
+                  if (open && !editingOffering) {
+                    // Clear errors and reset multiple offerings when opening create dialog
+                    setOfferingFormErrors({ advisory_service_id: '', name: '' });
+                    setMultipleOfferings([{ name: '', description: '', icon: '', display_order: 0 }]);
+                    setMultipleOfferingsErrors([{ name: '' }]);
+                  }
+                  if (!open) {
+                    // Reset editing state when closing dialog
+                    setEditingOffering(null);
+                  }
+                }}>
                   <DialogTrigger asChild>
                     <Button className="flex items-center gap-2">
                       <Plus className="h-4 w-4" />
                       Add Service Offering
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="max-h-[80vh] flex flex-col">
                     <DialogHeader>
                       <DialogTitle>
-                        {editingOffering ? 'Edit Service Offering' : 'Create New Service Offering'}
+                        {editingOffering ? 'Edit Service Offering' : 'Add New Service Offering'}
                       </DialogTitle>
                       <DialogDescription>
-                        Add or edit service offering information.
+                        {editingOffering 
+                          ? 'Edit service offering information. Use "Save" to update only, or "Save and Proceed Next" to update and add activities.' 
+                          : 'Add new service offering information. After saving, you\'ll be guided to add activities.'
+                        }
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="offering-service">Advisory Service</Label>
-                        <Select 
-                          value={offeringFormData.advisory_service_id} 
-                          onValueChange={(value) => setOfferingFormData({ ...offeringFormData, advisory_service_id: value })}
+                    <div className="flex-1 overflow-y-auto pr-2">
+                      <div className="space-y-4">
+                      {editingOffering ? (
+                        // Edit mode: Single offering form
+                        <>
+                          <div>
+                            <Label htmlFor="offering-service">Advisory Service <span className="text-red-500">*</span></Label>
+                            <Select 
+                              value={offeringFormData.advisory_service_id} 
+                              onValueChange={(value) => {
+                                setOfferingFormData({ ...offeringFormData, advisory_service_id: value });
+                                // Clear error when user selects a value
+                                if (offeringFormErrors.advisory_service_id) {
+                                  setOfferingFormErrors({ ...offeringFormErrors, advisory_service_id: '' });
+                                }
+                              }}
+                            >
+                              <SelectTrigger className={offeringFormErrors.advisory_service_id ? 'border-red-500 focus:border-red-500' : ''}>
+                                <SelectValue placeholder="Select advisory service (required)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {advisoryServices.map(service => (
+                                  <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {offeringFormErrors.advisory_service_id && (
+                              <p className="text-sm text-red-500 mt-1">{offeringFormErrors.advisory_service_id}</p>
+                            )}
+                          </div>
+                          <div>
+                            <Label htmlFor="offering-name">Offering Name <span className="text-red-500">*</span></Label>
+                            <Input
+                              id="offering-name"
+                              value={offeringFormData.name}
+                              onChange={(e) => {
+                                setOfferingFormData({ ...offeringFormData, name: e.target.value });
+                                // Clear error when user starts typing
+                                if (offeringFormErrors.name) {
+                                  setOfferingFormErrors({ ...offeringFormErrors, name: '' });
+                                }
+                              }}
+                              placeholder="Enter offering name (required)"
+                              className={offeringFormErrors.name ? 'border-red-500 focus:border-red-500' : ''}
+                              required
+                            />
+                            {offeringFormErrors.name && (
+                              <p className="text-sm text-red-500 mt-1">{offeringFormErrors.name}</p>
+                            )}
+                          </div>
+                          <div>
+                            <Label htmlFor="offering-description">Description</Label>
+                            <Input
+                              id="offering-description"
+                              value={offeringFormData.description}
+                              onChange={(e) => setOfferingFormData({ ...offeringFormData, description: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="offering-icon">Icon</Label>
+                            <Input
+                              id="offering-icon"
+                              value={offeringFormData.icon}
+                              placeholder="e.g., FileCheck, Building, GitBranch"
+                              onChange={(e) => setOfferingFormData({ ...offeringFormData, icon: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="offering-display-order">Display Order</Label>
+                            <Input
+                              id="offering-display-order"
+                              type="number"
+                              value={offeringFormData.display_order}
+                              onChange={(e) => setOfferingFormData({ ...offeringFormData, display_order: parseInt(e.target.value) || 0 })}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        // Create mode: Single offering form
+                        <>
+                          <div>
+                            <Label htmlFor="offering-service">Advisory Service <span className="text-red-500">*</span></Label>
+                            <Select 
+                              value={offeringFormData.advisory_service_id} 
+                              onValueChange={(value) => {
+                                setOfferingFormData({ ...offeringFormData, advisory_service_id: value });
+                                // Clear error when user selects a value
+                                if (offeringFormErrors.advisory_service_id) {
+                                  setOfferingFormErrors({ ...offeringFormErrors, advisory_service_id: '' });
+                                }
+                              }}
+                            >
+                              <SelectTrigger className={offeringFormErrors.advisory_service_id ? 'border-red-500 focus:border-red-500' : ''}>
+                                <SelectValue placeholder="Select advisory service (required)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {advisoryServices.map(service => (
+                                  <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {offeringFormErrors.advisory_service_id && (
+                              <p className="text-sm text-red-500 mt-1">{offeringFormErrors.advisory_service_id}</p>
+                            )}
+                          </div>
+                          <div>
+                            <Label htmlFor="offering-name">Offering Name <span className="text-red-500">*</span></Label>
+                            <Input
+                              id="offering-name"
+                              value={offeringFormData.name}
+                              onChange={(e) => {
+                                setOfferingFormData({ ...offeringFormData, name: e.target.value });
+                                // Clear error when user starts typing
+                                if (offeringFormErrors.name) {
+                                  setOfferingFormErrors({ ...offeringFormErrors, name: '' });
+                                }
+                              }}
+                              placeholder="Enter offering name (required)"
+                              className={offeringFormErrors.name ? 'border-red-500 focus:border-red-500' : ''}
+                              required
+                            />
+                            {offeringFormErrors.name && (
+                              <p className="text-sm text-red-500 mt-1">{offeringFormErrors.name}</p>
+                            )}
+                          </div>
+                          <div>
+                            <Label htmlFor="offering-description">Description</Label>
+                            <Input
+                              id="offering-description"
+                              value={offeringFormData.description}
+                              onChange={(e) => setOfferingFormData({ ...offeringFormData, description: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="offering-icon">Icon</Label>
+                            <Input
+                              id="offering-icon"
+                              value={offeringFormData.icon}
+                              placeholder="e.g., FileCheck, Building, GitBranch"
+                              onChange={(e) => setOfferingFormData({ ...offeringFormData, icon: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="offering-display-order">Display Order</Label>
+                            <Input
+                              id="offering-display-order"
+                              type="number"
+                              value={offeringFormData.display_order}
+                              onChange={(e) => setOfferingFormData({ ...offeringFormData, display_order: parseInt(e.target.value) || 0 })}
+                            />
+                          </div>
+                        </>
+                      )}
+                      {editingOffering ? (
+                        // Edit mode: Show both buttons
+                        <div className="flex gap-3">
+                          <Button 
+                            onClick={handleEditOffering} 
+                            className="flex-1"
+                          >
+                            Save
+                          </Button>
+                          <Button 
+                            onClick={handleEditOfferingAndNext} 
+                            className="flex-1"
+                          >
+                            Save and Proceed Next
+                          </Button>
+                        </div>
+                      ) : (
+                        // Create mode: Show only "Save and Proceed Next" button for single offering
+                        <Button 
+                          onClick={handleCreateOfferingAndNext} 
+                          className="w-full"
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select advisory service" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {advisoryServices.map(service => (
-                              <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          Save and Proceed Next
+                        </Button>
+                      )}
                       </div>
-                      <div>
-                        <Label htmlFor="offering-name">Offering Name</Label>
-                        <Input
-                          id="offering-name"
-                          value={offeringFormData.name}
-                          onChange={(e) => setOfferingFormData({ ...offeringFormData, name: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="offering-description">Description</Label>
-                        <Input
-                          id="offering-description"
-                          value={offeringFormData.description}
-                          onChange={(e) => setOfferingFormData({ ...offeringFormData, description: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="offering-icon">Icon</Label>
-                        <Input
-                          id="offering-icon"
-                          value={offeringFormData.icon}
-                          placeholder="e.g., FileCheck, Building, GitBranch"
-                          onChange={(e) => setOfferingFormData({ ...offeringFormData, icon: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="offering-display-order">Display Order</Label>
-                        <Input
-                          id="offering-display-order"
-                          type="number"
-                          value={offeringFormData.display_order}
-                          onChange={(e) => setOfferingFormData({ ...offeringFormData, display_order: parseInt(e.target.value) || 0 })}
-                        />
-                      </div>
-                      <Button 
-                        onClick={editingOffering ? handleEditOffering : handleCreateOffering} 
-                        className="w-full"
-                      >
-                        {editingOffering ? 'Update Offering' : 'Create Offering'}
-                      </Button>
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -1387,96 +2242,239 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
                       Configure activities for each service offering
                     </CardDescription>
                   </div>
-                  <Dialog open={isActivityDialogOpen} onOpenChange={setIsActivityDialogOpen}>
+                  <Dialog open={isActivityDialogOpen} onOpenChange={(open) => {
+                    setIsActivityDialogOpen(open);
+                    if (open && !editingActivity) {
+                      // Clear errors and reset multiple activities when opening create dialog
+                      setMultipleActivities([{ name: '', estimated_hours: 0, display_order: 0 }]);
+                      setMultipleActivitiesErrors([{ name: '' }]);
+                    }
+                    if (!open) {
+                      // Reset editing state when closing dialog
+                      setEditingActivity(null);
+                    }
+                  }}>
                     <DialogTrigger asChild>
                       <Button className="flex items-center gap-2">
                         <Plus className="h-4 w-4" />
                         Add Activity
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-h-[80vh] flex flex-col">
                       <DialogHeader>
                         <DialogTitle>
-                          {editingActivity ? 'Edit Activity' : 'Create New Activity'}
+                          {editingActivity ? 'Edit Activity' : 'Add New Activities'}
                         </DialogTitle>
                         <DialogDescription>
-                          Add or edit activity information.
+                          {editingActivity 
+                            ? 'Edit activity information.' 
+                            : 'Add new activities for the selected service offering.'
+                          }
                         </DialogDescription>
                       </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="activity-advisory-service">Advisory Service</Label>
-                          <Select 
-                            value={activityFormData.advisory_service_id} 
-                            onValueChange={(value) => {
-                              setActivityFormData({ 
-                                ...activityFormData, 
-                                advisory_service_id: value,
-                                service_offering_id: '' // Reset service offering when advisory service changes
-                              });
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select advisory service" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {advisoryServices.map(service => (
-                                <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor="activity-service-offering">Service Offering</Label>
-                          <Select 
-                            value={activityFormData.service_offering_id} 
-                            onValueChange={(value) => setActivityFormData({ ...activityFormData, service_offering_id: value })}
-                            disabled={!activityFormData.advisory_service_id}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder={!activityFormData.advisory_service_id ? "Select advisory service first" : "Select service offering"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {serviceOfferings
-                                .filter(offering => offering.advisory_service_id === activityFormData.advisory_service_id)
-                                .map(offering => (
-                                  <SelectItem key={offering.id} value={offering.id}>{offering.name}</SelectItem>
+                      <div className="flex-1 overflow-y-auto pr-2">
+                        <div className="space-y-4">
+                          {editingActivity ? (
+                            // Edit mode: Single activity form
+                            <>
+                              <div>
+                                <Label htmlFor="activity-advisory-service">Advisory Service</Label>
+                                <Select 
+                                  value={activityFormData.advisory_service_id} 
+                                  onValueChange={(value) => {
+                                    setActivityFormData({ 
+                                      ...activityFormData, 
+                                      advisory_service_id: value,
+                                      service_offering_id: '' // Reset service offering when advisory service changes
+                                    });
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select advisory service" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {advisoryServices.map(service => (
+                                      <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor="activity-service-offering">Service Offering</Label>
+                                <Select 
+                                  value={activityFormData.service_offering_id} 
+                                  onValueChange={(value) => setActivityFormData({ ...activityFormData, service_offering_id: value })}
+                                  disabled={!activityFormData.advisory_service_id}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={!activityFormData.advisory_service_id ? "Select advisory service first" : "Select service offering"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {serviceOfferings
+                                      .filter(offering => offering.advisory_service_id === activityFormData.advisory_service_id)
+                                      .map(offering => (
+                                        <SelectItem key={offering.id} value={offering.id}>{offering.name}</SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor="activity-name">Activity Name</Label>
+                                <Input
+                                  id="activity-name"
+                                  value={activityFormData.name}
+                                  onChange={(e) => setActivityFormData({ ...activityFormData, name: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="activity-hours">Estimated Hours</Label>
+                                <Input
+                                  id="activity-hours"
+                                  type="number"
+                                  value={activityFormData.estimated_hours}
+                                  onChange={(e) => setActivityFormData({ ...activityFormData, estimated_hours: parseInt(e.target.value) || 0 })}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="activity-display-order">Display Order</Label>
+                                <Input
+                                  id="activity-display-order"
+                                  type="number"
+                                  value={activityFormData.display_order}
+                                  onChange={(e) => setActivityFormData({ ...activityFormData, display_order: parseInt(e.target.value) || 0 })}
+                                />
+                              </div>
+                              <Button 
+                                onClick={handleEditActivity} 
+                                className="w-full"
+                              >
+                                Update Activity
+                              </Button>
+                            </>
+                          ) : (
+                            // Create mode: Multiple activities form
+                            <>
+                              <div>
+                                <Label htmlFor="activity-advisory-service">Advisory Service <span className="text-red-500">*</span></Label>
+                                <Select 
+                                  value={activityFormData.advisory_service_id} 
+                                  onValueChange={(value) => {
+                                    setActivityFormData({ 
+                                      ...activityFormData, 
+                                      advisory_service_id: value,
+                                      service_offering_id: '' // Reset service offering when advisory service changes
+                                    });
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select advisory service (required)" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {advisoryServices.map(service => (
+                                      <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              <div>
+                                <Label htmlFor="activity-service-offering">Service Offering <span className="text-red-500">*</span></Label>
+                                <Select 
+                                  value={activityFormData.service_offering_id} 
+                                  onValueChange={(value) => setActivityFormData({ ...activityFormData, service_offering_id: value })}
+                                  disabled={!activityFormData.advisory_service_id}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={!activityFormData.advisory_service_id ? "Select advisory service first" : "Select service offering (required)"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {serviceOfferings
+                                      .filter(offering => offering.advisory_service_id === activityFormData.advisory_service_id)
+                                      .map(offering => (
+                                        <SelectItem key={offering.id} value={offering.id}>{offering.name}</SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-base font-medium">Activities <span className="text-red-500">*</span></Label>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={addNewActivity}
+                                    className="flex items-center gap-1"
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                    Add Activity
+                                  </Button>
+                                </div>
+                                
+                                {multipleActivities.map((activity, index) => (
+                                  <div key={index} className="border rounded-lg p-4 space-y-3 relative">
+                                    {multipleActivities.length > 1 && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => removeActivity(index)}
+                                        className="absolute top-2 right-2 h-6 w-6 p-0"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                    
+                                    <div>
+                                      <Label htmlFor={`activity-name-${index}`}>Activity Name <span className="text-red-500">*</span></Label>
+                                      <Input
+                                        id={`activity-name-${index}`}
+                                        value={activity.name}
+                                        onChange={(e) => updateActivity(index, 'name', e.target.value)}
+                                        placeholder="Enter activity name (required)"
+                                        className={multipleActivitiesErrors[index]?.name ? 'border-red-500 focus:border-red-500' : ''}
+                                        required
+                                      />
+                                      {multipleActivitiesErrors[index]?.name && (
+                                        <p className="text-sm text-red-500 mt-1">{multipleActivitiesErrors[index].name}</p>
+                                      )}
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div>
+                                        <Label htmlFor={`activity-hours-${index}`}>Estimated Hours</Label>
+                                        <Input
+                                          id={`activity-hours-${index}`}
+                                          type="number"
+                                          value={activity.estimated_hours}
+                                          onChange={(e) => updateActivity(index, 'estimated_hours', parseInt(e.target.value) || 0)}
+                                          placeholder="0"
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label htmlFor={`activity-display-order-${index}`}>Display Order</Label>
+                                        <Input
+                                          id={`activity-display-order-${index}`}
+                                          type="number"
+                                          value={activity.display_order}
+                                          onChange={(e) => updateActivity(index, 'display_order', parseInt(e.target.value) || 0)}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
                                 ))}
-                            </SelectContent>
-                          </Select>
+                              </div>
+                              
+                              <Button 
+                                onClick={() => handleCreateMultipleActivitiesAndNext(activityFormData.advisory_service_id, activityFormData.service_offering_id)} 
+                                className="w-full"
+                              >
+                                Save and Proceed Next
+                              </Button>
+                            </>
+                          )}
                         </div>
-                        <div>
-                          <Label htmlFor="activity-name">Activity Name</Label>
-                          <Input
-                            id="activity-name"
-                            value={activityFormData.name}
-                            onChange={(e) => setActivityFormData({ ...activityFormData, name: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="activity-hours">Estimated Hours</Label>
-                          <Input
-                            id="activity-hours"
-                            type="number"
-                            value={activityFormData.estimated_hours}
-                            onChange={(e) => setActivityFormData({ ...activityFormData, estimated_hours: parseInt(e.target.value) || 0 })}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="activity-display-order">Display Order</Label>
-                          <Input
-                            id="activity-display-order"
-                            type="number"
-                            value={activityFormData.display_order}
-                            onChange={(e) => setActivityFormData({ ...activityFormData, display_order: parseInt(e.target.value) || 0 })}
-                          />
-                        </div>
-                        <Button 
-                          onClick={editingActivity ? handleEditActivity : handleCreateActivity} 
-                          className="w-full"
-                        >
-                          {editingActivity ? 'Update Activity' : 'Create Activity'}
-                        </Button>
                       </div>
                     </DialogContent>
                   </Dialog>
@@ -1561,133 +2559,270 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
                       Configure sub-activities for each activity
                     </CardDescription>
                   </div>
-                  <Dialog open={isSubActivityDialogOpen} onOpenChange={setIsSubActivityDialogOpen}>
+                  <Dialog open={isSubActivityDialogOpen} onOpenChange={(open) => {
+                    setIsSubActivityDialogOpen(open);
+                    if (open && !editingSubActivity) {
+                      // Clear errors and reset multiple sub-activities when opening create dialog
+                      setMultipleSubActivities([{ name: '', estimated_hours: 0, associated_tool: '', display_order: 0 }]);
+                      setMultipleSubActivitiesErrors([{ name: '' }]);
+                    }
+                    if (!open) {
+                      // Reset editing state when closing dialog
+                      setEditingSubActivity(null);
+                    }
+                  }}>
                     <DialogTrigger asChild>
                       <Button className="flex items-center gap-2">
                         <Plus className="h-4 w-4" />
                         Add Sub-Activity
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-h-[80vh] flex flex-col">
                       <DialogHeader>
                         <DialogTitle>
-                          {editingSubActivity ? 'Edit Sub-Activity' : 'Create New Sub-Activity'}
+                          {editingSubActivity ? 'Edit Sub-Activity' : 'Add New Sub-Activities'}
                         </DialogTitle>
                         <DialogDescription>
-                          Add or edit sub-activity information.
+                          {editingSubActivity 
+                            ? 'Edit sub-activity information.' 
+                            : 'Add new sub-activities for the selected activity.'
+                          }
                         </DialogDescription>
                       </DialogHeader>
-                       <div className="space-y-4">
-                         <div>
-                           <Label htmlFor="subactivity-advisory-service">Advisory Service</Label>
-                           <Select 
-                             value={subActivityFormData.advisory_service_id} 
-                             onValueChange={(value) => {
-                               setSubActivityFormData({ 
-                                 ...subActivityFormData, 
-                                 advisory_service_id: value,
-                                 service_offering_id: '', // Reset service offering when advisory service changes
-                                 activity_id: '' // Reset activity when advisory service changes
-                               });
-                             }}
-                           >
-                             <SelectTrigger>
-                               <SelectValue placeholder="Select advisory service" />
-                             </SelectTrigger>
-                             <SelectContent>
-                               {advisoryServices.filter(s => s.is_active).map(service => (
-                                 <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
-                               ))}
-                             </SelectContent>
-                           </Select>
-                         </div>
-                         <div>
-                           <Label htmlFor="subactivity-service-offering">Service Offering</Label>
-                           <Select 
-                             value={subActivityFormData.service_offering_id} 
-                             onValueChange={(value) => {
-                               setSubActivityFormData({ 
-                                 ...subActivityFormData, 
-                                 service_offering_id: value,
-                                 activity_id: '' // Reset activity when service offering changes
-                               });
-                             }}
-                             disabled={!subActivityFormData.advisory_service_id}
-                           >
-                             <SelectTrigger>
-                               <SelectValue placeholder={!subActivityFormData.advisory_service_id ? "Select advisory service first" : "Select service offering"} />
-                             </SelectTrigger>
-                             <SelectContent>
-                               {serviceOfferings
-                                 .filter(offering => offering.advisory_service_id === subActivityFormData.advisory_service_id && offering.is_active)
-                                 .map(offering => (
-                                   <SelectItem key={offering.id} value={offering.id}>{offering.name}</SelectItem>
-                                 ))}
-                             </SelectContent>
-                           </Select>
-                         </div>
-                         <div>
-                           <Label htmlFor="subactivity-activity">Activity</Label>
-                           <Select 
-                             value={subActivityFormData.activity_id} 
-                             onValueChange={(value) => setSubActivityFormData({ ...subActivityFormData, activity_id: value })}
-                             disabled={!subActivityFormData.service_offering_id}
-                           >
-                             <SelectTrigger>
-                               <SelectValue placeholder={!subActivityFormData.service_offering_id ? "Select service offering first" : "Select activity"} />
-                             </SelectTrigger>
-                             <SelectContent>
-                               {activities
-                                 .filter(activity => activity.service_offering_id === subActivityFormData.service_offering_id && activity.is_active)
-                                 .map(activity => (
-                                   <SelectItem key={activity.id} value={activity.id}>
-                                     {activity.name}
-                                   </SelectItem>
-                                 ))}
-                             </SelectContent>
-                           </Select>
-                         </div>
-                        <div>
-                          <Label htmlFor="subactivity-name">Sub-Activity Name</Label>
-                          <Input
-                            id="subactivity-name"
-                            value={subActivityFormData.name}
-                            onChange={(e) => setSubActivityFormData({ ...subActivityFormData, name: e.target.value })}
-                          />
+                      <div className="flex-1 overflow-y-auto pr-2">
+                        <div className="space-y-4">
+                          {editingSubActivity ? (
+                            // Edit mode: Single sub-activity form
+                            <>
+                              <div>
+                                <Label htmlFor="subactivity-advisory-service">Advisory Service</Label>
+                                <Select 
+                                  value={subActivityFormData.advisory_service_id} 
+                                  onValueChange={(value) => {
+                                    setSubActivityFormData({ 
+                                      ...subActivityFormData, 
+                                      advisory_service_id: value,
+                                      service_offering_id: '', // Reset service offering when advisory service changes
+                                      activity_id: '' // Reset activity when advisory service changes
+                                    });
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select advisory service" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {advisoryServices.filter(s => s.is_active).map(service => (
+                                      <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor="subactivity-service-offering">Service Offering</Label>
+                                <Select 
+                                  value={subActivityFormData.service_offering_id} 
+                                  onValueChange={(value) => {
+                                    setSubActivityFormData({ 
+                                      ...subActivityFormData, 
+                                      service_offering_id: value,
+                                      activity_id: '' // Reset activity when service offering changes
+                                    });
+                                  }}
+                                  disabled={!subActivityFormData.advisory_service_id}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={!subActivityFormData.advisory_service_id ? "Select advisory service first" : "Select service offering"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {serviceOfferings
+                                      .filter(offering => offering.advisory_service_id === subActivityFormData.advisory_service_id && offering.is_active)
+                                      .map(offering => (
+                                        <SelectItem key={offering.id} value={offering.id}>{offering.name}</SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor="subactivity-activity">Activity</Label>
+                                <Select 
+                                  value={subActivityFormData.activity_id} 
+                                  onValueChange={(value) => setSubActivityFormData({ ...subActivityFormData, activity_id: value })}
+                                  disabled={!subActivityFormData.service_offering_id}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={!subActivityFormData.service_offering_id ? "Select service offering first" : "Select activity"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {activities
+                                      .filter(activity => activity.service_offering_id === subActivityFormData.service_offering_id && activity.is_active)
+                                      .map(activity => (
+                                        <SelectItem key={activity.id} value={activity.id}>
+                                          {activity.name}
+                                        </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor="subactivity-name">Sub-Activity Name</Label>
+                                <Input
+                                  id="subactivity-name"
+                                  value={subActivityFormData.name}
+                                  onChange={(e) => setSubActivityFormData({ ...subActivityFormData, name: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="subactivity-hours">Estimated Hours</Label>
+                                <Input
+                                  id="subactivity-hours"
+                                  type="number"
+                                  value={subActivityFormData.estimated_hours}
+                                  onChange={(e) => setSubActivityFormData({ ...subActivityFormData, estimated_hours: parseInt(e.target.value) || 0 })}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="subactivity-tool">Associated Tool</Label>
+                                <Input
+                                  id="subactivity-tool"
+                                  value={subActivityFormData.associated_tool}
+                                  placeholder="e.g., SonarQube, Jenkins, etc."
+                                  onChange={(e) => setSubActivityFormData({ ...subActivityFormData, associated_tool: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="subactivity-display-order">Display Order</Label>
+                                <Input
+                                  id="subactivity-display-order"
+                                  type="number"
+                                  value={subActivityFormData.display_order}
+                                  onChange={(e) => setSubActivityFormData({ ...subActivityFormData, display_order: parseInt(e.target.value) || 0 })}
+                                />
+                              </div>
+                              <Button 
+                                onClick={handleEditSubActivity} 
+                                className="w-full"
+                              >
+                                Update Sub-Activity
+                              </Button>
+                            </>
+                          ) : (
+                            // Create mode: Single sub-activity form (for now)
+                            <>
+                              <div>
+                                <Label htmlFor="subactivity-advisory-service">Advisory Service <span className="text-red-500">*</span></Label>
+                                <Select 
+                                  value={subActivityFormData.advisory_service_id} 
+                                  onValueChange={(value) => {
+                                    setSubActivityFormData({ 
+                                      ...subActivityFormData, 
+                                      advisory_service_id: value,
+                                      service_offering_id: '', // Reset service offering when advisory service changes
+                                      activity_id: '' // Reset activity when advisory service changes
+                                    });
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select advisory service (required)" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {advisoryServices.filter(s => s.is_active).map(service => (
+                                      <SelectItem key={service.id} value={service.id}>{service.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor="subactivity-service-offering">Service Offering <span className="text-red-500">*</span></Label>
+                                <Select 
+                                  value={subActivityFormData.service_offering_id} 
+                                  onValueChange={(value) => {
+                                    setSubActivityFormData({ 
+                                      ...subActivityFormData, 
+                                      service_offering_id: value,
+                                      activity_id: '' // Reset activity when service offering changes
+                                    });
+                                  }}
+                                  disabled={!subActivityFormData.advisory_service_id}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={!subActivityFormData.advisory_service_id ? "Select advisory service first" : "Select service offering (required)"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {serviceOfferings
+                                      .filter(offering => offering.advisory_service_id === subActivityFormData.advisory_service_id && offering.is_active)
+                                      .map(offering => (
+                                        <SelectItem key={offering.id} value={offering.id}>{offering.name}</SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor="subactivity-activity">Activity <span className="text-red-500">*</span></Label>
+                                <Select 
+                                  value={subActivityFormData.activity_id} 
+                                  onValueChange={(value) => setSubActivityFormData({ ...subActivityFormData, activity_id: value })}
+                                  disabled={!subActivityFormData.service_offering_id}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={!subActivityFormData.service_offering_id ? "Select service offering first" : "Select activity (required)"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {activities
+                                      .filter(activity => activity.service_offering_id === subActivityFormData.service_offering_id && activity.is_active)
+                                      .map(activity => (
+                                        <SelectItem key={activity.id} value={activity.id}>
+                                          {activity.name}
+                                        </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor="subactivity-name">Sub-Activity Name <span className="text-red-500">*</span></Label>
+                                <Input
+                                  id="subactivity-name"
+                                  value={subActivityFormData.name}
+                                  onChange={(e) => setSubActivityFormData({ ...subActivityFormData, name: e.target.value })}
+                                  placeholder="Enter sub-activity name (required)"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="subactivity-hours">Estimated Hours</Label>
+                                <Input
+                                  id="subactivity-hours"
+                                  type="number"
+                                  value={subActivityFormData.estimated_hours}
+                                  onChange={(e) => setSubActivityFormData({ ...subActivityFormData, estimated_hours: parseInt(e.target.value) || 0 })}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="subactivity-tool">Associated Tool</Label>
+                                <Input
+                                  id="subactivity-tool"
+                                  value={subActivityFormData.associated_tool}
+                                  placeholder="e.g., SonarQube, Jenkins, etc."
+                                  onChange={(e) => setSubActivityFormData({ ...subActivityFormData, associated_tool: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="subactivity-display-order">Display Order</Label>
+                                <Input
+                                  id="subactivity-display-order"
+                                  type="number"
+                                  value={subActivityFormData.display_order}
+                                  onChange={(e) => setSubActivityFormData({ ...subActivityFormData, display_order: parseInt(e.target.value) || 0 })}
+                                />
+                              </div>
+                              <Button 
+                                onClick={handleCreateSubActivity} 
+                                className="w-full"
+                              >
+                                Create Sub-Activity
+                              </Button>
+                            </>
+                          )}
                         </div>
-                        <div>
-                          <Label htmlFor="subactivity-hours">Estimated Hours</Label>
-                          <Input
-                            id="subactivity-hours"
-                            type="number"
-                            value={subActivityFormData.estimated_hours}
-                            onChange={(e) => setSubActivityFormData({ ...subActivityFormData, estimated_hours: parseInt(e.target.value) || 0 })}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="subactivity-tool">Associated Tool</Label>
-                          <Input
-                            id="subactivity-tool"
-                            value={subActivityFormData.associated_tool}
-                            placeholder="e.g., SonarQube, Jenkins, etc."
-                            onChange={(e) => setSubActivityFormData({ ...subActivityFormData, associated_tool: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="subactivity-display-order">Display Order</Label>
-                          <Input
-                            id="subactivity-display-order"
-                            type="number"
-                            value={subActivityFormData.display_order}
-                            onChange={(e) => setSubActivityFormData({ ...subActivityFormData, display_order: parseInt(e.target.value) || 0 })}
-                          />
-                        </div>
-                        <Button 
-                          onClick={editingSubActivity ? handleEditSubActivity : handleCreateSubActivity} 
-                          className="w-full"
-                        >
-                          {editingSubActivity ? 'Update Sub-Activity' : 'Create Sub-Activity'}
-                        </Button>
                       </div>
                     </DialogContent>
                   </Dialog>

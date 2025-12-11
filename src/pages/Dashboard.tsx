@@ -64,6 +64,7 @@ import {
 
 // Custom Components - Application-specific components
 import { InsightsSection } from '@/components/InsightsSection';  // AI-powered insights and analytics
+import DataExporter from '@/components/DataExporter';  // Emergency data export functionality
 
 // Database Integration - Supabase client for real-time data operations
 import { supabase } from '@/integrations/supabase/client';
@@ -975,7 +976,7 @@ export const Dashboard: React.FC = () => {
               <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-lg blur opacity-25 animate-pulse"></div>
               
               {/* Enhanced TabsList with Custom Styling */}
-              <TabsList className="relative grid grid-cols-2 w-full sm:w-auto bg-white/90 backdrop-blur-lg border border-white/20 shadow-xl rounded-xl p-1 transition-all duration-300 hover:shadow-2xl hover:scale-105">
+              <TabsList className="relative grid grid-cols-3 w-full sm:w-auto bg-white/90 backdrop-blur-lg border border-white/20 shadow-xl rounded-xl p-1 transition-all duration-300 hover:shadow-2xl hover:scale-105">
                 <TabsTrigger 
                   value="my-dashboard" 
                   className="relative px-8 py-3 rounded-lg font-semibold text-sm transition-all duration-300 
@@ -1012,6 +1013,25 @@ export const Dashboard: React.FC = () => {
                   
                   {/* Active Indicator */}
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-400/20 to-pink-400/20 scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-500 origin-left"></div>
+                </TabsTrigger>
+                
+                <TabsTrigger 
+                  value="export" 
+                  className="relative px-8 py-3 rounded-lg font-semibold text-sm transition-all duration-300
+                           data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-orange-600 
+                           data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-105
+                           hover:bg-gradient-to-r hover:from-red-50 hover:to-orange-50 hover:text-red-700
+                           data-[state=inactive]:text-gray-600 data-[state=inactive]:hover:text-red-600
+                           group overflow-hidden"
+                >
+                  {/* Tab Content */}
+                  <div className="relative z-10 flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-current opacity-75 group-data-[state=active]:animate-pulse"></div>
+                    🚨 Export
+                  </div>
+                  
+                  {/* Active Indicator */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-400/20 to-orange-400/20 scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-500 origin-left"></div>
                 </TabsTrigger>
               </TabsList>
               
@@ -1725,6 +1745,22 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
             <InsightsSection />
+          </TabsContent>
+          
+          <TabsContent value="export" className="space-y-6 animate-fade-in">
+            {/* Decorative Header for Export */}
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 via-orange-500/10 to-yellow-500/10 rounded-2xl blur-xl"></div>
+              <div className="relative bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-xl">
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent mb-2">
+                  🚨 Emergency Data Export
+                </h2>
+                <p className="text-gray-600">
+                  Export all your database tables as JSON files. Use this to backup your data before migration.
+                </p>
+              </div>
+            </div>
+            <DataExporter />
           </TabsContent>
         </Tabs>
       </div>

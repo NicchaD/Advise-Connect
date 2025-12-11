@@ -849,12 +849,30 @@ export default function MyItems() {
       const unifiedProfiles = await fetchUnifiedUserProfiles(allUserIds);
       const profileMap = createUnifiedProfileLookupMap(unifiedProfiles);
       
-      console.log('MyItems: Fetched unified profiles:', unifiedProfiles.length);
-      if (unifiedProfiles.length > 0) {
-        const advisoryMembers = unifiedProfiles.filter(p => p.is_advisory_member);
-        console.log('MyItems: Advisory members found:', advisoryMembers.length);
-        if (advisoryMembers.length > 0) {
-          console.log('MyItems: Sample advisory member:', advisoryMembers[0]);
+      // Check for missing requestor profiles and fetch them separately
+      const foundRequestorIds = unifiedProfiles.map(p => p.user_id);
+      const missingRequestorIds = requestorIds.filter(id => !foundRequestorIds.includes(id));
+      
+      if (missingRequestorIds.length > 0) {
+        const { data: missingProfiles, error } = await supabase
+          .from('profiles')
+          .select('user_id, username, email, role, title')
+          .in('user_id', missingRequestorIds);
+          
+        if (error) {
+          console.error('MyItems: Error fetching missing requestor profiles:', error);
+        } else {
+          // Add missing profiles to the profile map
+          missingProfiles?.forEach(profile => {
+            profileMap[profile.user_id] = {
+              user_id: profile.user_id,
+              username: profile.username,
+              email: profile.email,
+              role: profile.role,
+              profile_title: profile.title,
+              is_advisory_member: false
+            };
+          });
         }
       }
 
