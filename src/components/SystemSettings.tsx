@@ -1728,7 +1728,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
   return (
     <div className="space-y-6">
       <Tabs value={activeSystemTab} onValueChange={setActiveSystemTab} className="h-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="advisory-services" className="flex items-center gap-2">
             <Wrench className="h-4 w-4" />
             Advisory Services
@@ -1740,6 +1740,10 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
           <TabsTrigger value="activities" className="flex items-center gap-2">
             <Activity className="h-4 w-4" />
             Activities
+          </TabsTrigger>
+          <TabsTrigger value="sub-activities" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Sub-Activities
           </TabsTrigger>
           <TabsTrigger value="dropdown-values" className="flex items-center gap-2">
             <List className="h-4 w-4" />
@@ -2231,11 +2235,9 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
         </TabsContent>
 
         <TabsContent value="activities" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Activities Management */}
-            <Card>
+          <Card>
               <CardHeader>
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="text-left">
                     <CardTitle className="text-left">Manage Activities</CardTitle>
                     <CardDescription className="text-left">
@@ -2548,11 +2550,12 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
                 </div>
               </CardContent>
             </Card>
+        </TabsContent>
 
-            {/* Sub-Activities Management */}
-            <Card>
+        <TabsContent value="sub-activities" className="space-y-6">
+          <Card>
               <CardHeader>
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="text-left">
                     <CardTitle className="text-left">Manage Sub-Activities</CardTitle>
                     <CardDescription className="text-left">
@@ -2899,7 +2902,6 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({
                 </div>
               </CardContent>
             </Card>
-          </div>
         </TabsContent>
 
         <TabsContent value="dropdown-values" className="space-y-6">
